@@ -1,0 +1,35 @@
+1 создание бд и пользователя
+    подключение к PostgreSQL как администратор
+        sudo -u postgres psql
+
+    в открывщейся консольке пишу:
+        CREATE DATABASE quantum_experiments;
+    пользователь для программы
+        CREATE USER quantum_user WITH PASSWORD 'quantum_password';
+    дача пользователю права на базу
+        GRANT ALL PRIVILEGES ON DATABASE quantum_experiments TO quantum_user;
+    выход из консоли PostgreSQL
+        \q
+
+    как удалить всё, если что-то пойдёт не так:
+        Удалить базу данных:
+            sudo -u postgres psql -c "DROP DATABASE quantum_experiments;"
+        Удалить пользователя:
+            sudo -u postgres psql -c "DROP USER quantum_user;"
+        Удалить PostgreSQL полностью:
+            sudo apt remove --purge postgresql postgresql-contrib
+            sudo apt autoremove
+
+    DataGrip это просто клиент для просмотра данных. Он НЕ управляет работой PostgreSQL.
+    
+    чтобы остановить службу PostgreSQL (также вынесет все дочерние процессы (в htop видно)): 
+        sudo systemctl stop postgresql
+    проверить статус:
+        sudo systemctl status postgresql
+        -- теперь сервер PostgreSQL перестаёт принимать подключения. Python будет получать ошибку подключения.
+    как еще проверить:
+        sudo -u postgres psql 
+    для запуска:
+        sudo systemctl start postgresql
+    чтобы PostgreSQL запускался автоматически при загрузке системы:
+        sudo systemctl enable postgresql
