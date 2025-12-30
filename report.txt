@@ -21,6 +21,8 @@
             sudo apt autoremove
 
     DataGrip это просто клиент для просмотра данных. Он НЕ управляет работой PostgreSQL.
+
+    Про psycorg2: https://www.psycopg.org/docs/usage.html
     
     чтобы остановить службу PostgreSQL (также вынесет все дочерние процессы (в htop видно)): 
         sudo systemctl stop postgresql
@@ -33,6 +35,10 @@
         sudo systemctl start postgresql
     чтобы PostgreSQL запускался автоматически при загрузке системы:
         sudo systemctl enable postgresql
+    чтобы PostgreSQL НЕ запускался автоматически при загрузке системы:
+        sudo systemctl disable postgresql
+    команды postgresql (вышеперечисленные):
+        https://stackoverflow.com/questions/41528530/stopping-postgresql-from-starting-on-ubuntu-startup
 
     как удалять записи из БД с помощью DataGrip:
         1 Откройте таблицу в редакторе данных: В окне Database Explorer найдите вашу таблицу experiments, дважды щелкните по ней или нажмите F4.
