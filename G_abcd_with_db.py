@@ -4,7 +4,6 @@ import numpy as np
 from quantum_tools import entropy, check_eigenvalues
 from database import ExperimentDB
 
-# generate |0> and |1> states in 2-dimensional Hilbert space
 q0 = basis(2, 0)
 q1 = basis(2, 1)
 
@@ -54,7 +53,6 @@ def main():
             "d": d,
             "state_family": "G_abcd"
         }
-        
         experiment_id = db.save_experiment(
             name="Анализ 4-кубитного состояния G_abcd",
             description="генерация состояния и анализ запутанности кубитов",

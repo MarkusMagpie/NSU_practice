@@ -11,16 +11,16 @@ class ExperimentDB:
             'password': 'quantum_password'
         }
     
+    # сохранение информации о запуске эксперимента
     def save_experiment(self, name, description, parameters):
-        # сохранение информации о запуске эксперимента
         try:
             conn = psycopg2.connect(**self.connection_params)
             cursor = conn.cursor()
             
             # SQL request для вставки
             query = """
-            INSERT INTO experiments (name, description, parameters, status, created_at)
-            VALUES (%s, %s, %s, %s, %s)
+            INSERT INTO experiments (name, description, parameters, status, created_at, results)
+            VALUES (%s, %s, %s, %s, %s, %s)
             RETURNING id;
             """
             
@@ -30,7 +30,8 @@ class ExperimentDB:
                 description,
                 json.dumps(parameters),
                 'running',
-                datetime.now()
+                datetime.now(),
+                json.dumps({}),
             ))
             
             # ID новой записи
@@ -51,18 +52,23 @@ class ExperimentDB:
             print(f"Ошибка сохранения эксперимента: {e}")
             return None
     
+    # обновить статус эксперимента
     def update_status(self, experiment_id, status, results=None):
-        # Обновить статус эксперимента
         try:
             conn = psycopg2.connect(**self.connection_params)
             cursor = conn.cursor()
             
             if results:
-                # есть результаты -> сохраняю их в поле results
-                results_json = json.dumps(results)
-                query = "UPDATE experiments SET status = %s, parameters = parameters || %s WHERE id = %s"
-                cursor.execute(query, (status, json.dumps({"results": results}), experiment_id))
+                # обнова двух полей: status и results
+                query = """
+                UPDATE experiments 
+                SET status = %s, 
+                    results = %s 
+                WHERE id = %s
+                """
+                cursor.execute(query, (status, json.dumps(results), experiment_id))
             else:
+                # только статус
                 query = "UPDATE experiments SET status = %s WHERE id = %s"
                 cursor.execute(query, (status, experiment_id))
             
