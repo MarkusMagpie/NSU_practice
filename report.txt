@@ -1,4 +1,7 @@
-1 создание бд и пользователя
+Настройка PostgreSQL в Linux:
+    https://habr.com/ru/articles/875548/
+
+создание бд и пользователя
     подключение к PostgreSQL как администратор
         sudo -u postgres psql
 
