@@ -113,7 +113,7 @@ class EntanglementVisualizer:
                               node_shape='o')
         
         # подписание вершин
-        nx.draw_networkx_labels(G, pos, font_size=16, font_weight='bold')
+        nx.draw_networkx_labels(G, pos, font_size=16, font_color='white', font_weight='bold')
 
         # рисовашки ребер запутанности (жирные синие линии)
         nx.draw_networkx_edges(G, pos, 
