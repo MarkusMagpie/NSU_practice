@@ -41,11 +41,6 @@ class EntanglementVisualizer:
                 else:
                     parameters = {}
 
-                # if results_json:
-                #     results = json.loads(results_json)
-                # else:
-                #     results = {}  # если результатов нет вернется пустой словарб
-
                 if results_json is None:
                     results = {}
                 else:
@@ -140,9 +135,7 @@ class EntanglementVisualizer:
         classification = results.get('classification', 'Неизвестно')
         entangled_count = results.get('entangled_count', 0)
         info_text = f"классификация: {classification}\запутанных пар: {entangled_count}/6"
-        plt.figtext(0.5, 0.02, info_text, 
-                   ha='center', fontsize=12,
-                   bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+        plt.figtext(0.5, 0.02, info_text, ha='center', fontsize=12)
         
         # легенда
         plt.legend(loc='upper right', fontsize=12)

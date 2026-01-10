@@ -54,3 +54,4 @@
 
 графовые состояния
     библиотека networkx: https://networkx.org/documentation/stable/install.html
+    туториал здесь же: https://networkx.org/documentation/stable/tutorial.html
