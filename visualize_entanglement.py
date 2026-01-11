@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import json
 import sys
+import os
 
 from database import ExperimentDB
 
@@ -183,6 +184,10 @@ def main():
     experiment_id = int(sys.argv[1])
     if len(sys.argv) > 2:
         output_file = sys.argv[2]
+
+        if os.path.exists(output_file):
+            print(f"ошибка - файл '{output_file}' уже существует!")
+            sys.exit(1)
     else :
         output_file = None
     
