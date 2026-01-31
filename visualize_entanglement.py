@@ -103,33 +103,19 @@ class EntanglementVisualizer:
         }
 
         # рисовашки вершин
-        nx.draw_networkx_nodes(G, pos, node_size=2000, 
-                              node_color='blue', 
-                              edgecolors='black',
-                              node_shape='o')
+        nx.draw_networkx_nodes(G, pos, node_size=2000, node_color='blue', edgecolors='black', node_shape='o')
         
         # подписание вершин
         nx.draw_networkx_labels(G, pos, font_size=16, font_color='white', font_weight='bold')
 
         # рисовашки ребер запутанности (жирные синие линии)
-        nx.draw_networkx_edges(G, pos, 
-                              edgelist=entangled_edges,
-                              width=3, 
-                              edge_color='red',
-                              style='solid',
-                              label='запутанные пары')
+        nx.draw_networkx_edges(G, pos, edgelist=entangled_edges,width=3, edge_color='red',style='solid',label='запутанные пары')
         
         # рисовашки НЕзапутанных пар (пунктирные серые линии)
         if non_entangled_edges:
-            nx.draw_networkx_edges(G, pos,
-                                  edgelist=non_entangled_edges,
-                                  width=1,
-                                  edge_color='gray',
-                                  style='dashed',
-                                  alpha=0.5,
-                                  label='НЕ запутанные пары')
+            nx.draw_networkx_edges(G, pos, edgelist=non_entangled_edges, width=1, edge_color='gray', style='dashed', alpha=0.5, label='НЕ запутанные пары')
         
-        title = f"Граф запутанности\nЭксперимент #{experiment_data['id']}: {experiment_data['name']}"
+        title = f"Граф запутанности\nЭксперимент {experiment_data['id']}: {experiment_data['name']}"
         plt.title(title, fontsize=14, pad=20)
 
         # + информация о классификации
@@ -156,7 +142,6 @@ class EntanglementVisualizer:
             'entangled_count': entangled_count
         }
 
-    # основная функция для визуализации эксперимента
     def visualize_experiment(self, experiment_id, save_to_file=None):
         print(f"визуализация эксперимента #{experiment_id}...")
         
@@ -177,7 +162,7 @@ class EntanglementVisualizer:
 
 def main():
     if len(sys.argv) < 2:
-        print("как использовать: python3 visualize_entanglement.py <experiment_id> [output_file]")
+        print("как использовать: python3 visualize_entanglement.py experiment_id [output_file]")
         print("например: python3 visualize_entanglement.py 8 graph.png")
         sys.exit(1)
     
