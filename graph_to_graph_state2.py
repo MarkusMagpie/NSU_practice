@@ -11,6 +11,8 @@ from collections import defaultdict, deque
 def cnot_manual():
     return Qobj([[1,0,0,0], [0,1,0,0], [0,0,0,1], [0,0,1,0]], dims=[[2,2],[2,2]])
 
+
+
 class GraphState:
     def __init__(self, vertices, edges):
         self.vertices = list(vertices)
@@ -124,7 +126,7 @@ class GraphState:
             print("граф содержит несколько компонент связности:")
             for i, comp in enumerate(components):
                 print(f"компонента {i+1}: {comp}")
-            print("\n")
+            print()
 
             self.state_vector = self.build_tensor_product(components)
 
