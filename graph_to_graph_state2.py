@@ -5,18 +5,21 @@ import matplotlib.pyplot as plt
 from qutip import basis, tensor, expand_operator, Qobj
 from qutip.qip.operations import cnot, hadamard_transform
 from collections import defaultdict, deque
+import os
 
 
 
 def cnot_manual():
     return Qobj([[1,0,0,0], [0,1,0,0], [0,0,0,1], [0,0,1,0]], dims=[[2,2],[2,2]])
 
+def normalize_edge(u, v):
+    return (u, v) if u < v else (v, u)
 
 
 class GraphState:
     def __init__(self, vertices, edges):
         self.vertices = list(vertices)
-        self.edges = list(edges)
+        self.edges = [normalize_edge(u, v) for u, v in edges]
         self.validate_input()
         self.state_vector = None
         
@@ -125,8 +128,7 @@ class GraphState:
         else:
             print("граф содержит несколько компонент связности:")
             for i, comp in enumerate(components):
-                print(f"компонента {i+1}: {comp}")
-            print()
+                print(f"\tкомпонента {i+1}: {comp}")
 
             self.state_vector = self.build_tensor_product(components)
 
@@ -136,7 +138,7 @@ class GraphState:
     def get_amplitudes(self):
         if self.state_vector is None:
             return None
-        return self.state_vector.full().flatten()
+        return self.state_vector.full().flatten() # извлечение амплитуд из вектора |psi>. Получаю одномерный массив из 2^N элементов
 
     # сохранялка в csv файл всех базисных состояний
     def save_amplitudes(self, filename):
@@ -144,44 +146,116 @@ class GraphState:
             raise RuntimeError("состояние не построено")
 
         N = int(np.log2(len(self.state_vector.full())))
-        amps = self.state_vector.full().flatten() # извлечение амплитуд из вектора |psi>. Получаю одномерный массив из 2^N элементов
+        amps = self.state_vector.full().flatten()
         
         with open(filename, 'w', newline='') as f:
             writer = csv.writer(f)
-            writer.writerow(['basis', 'amplitude'])
+            writer.writerow(['базис', 'амплитуда'])
             for b in range(2**N):
                 basis_str = format(b, '0{}b'.format(N))
                 writer.writerow([basis_str, amps[b]])
 
-    # визуализация входного графа
-    def visualize(self, filename=None):
+    # визуализация входного графов (входных/локально дополненных)
+    def visualize(self, filename=None, subdir=None, show=True):
         G = nx.Graph()
         G.add_nodes_from(self.vertices)
         G.add_edges_from(self.edges)
 
         plt.figure(figsize=(8, 6))
         pos = nx.spring_layout(G, seed=42)
-
+        
         nx.draw_networkx_nodes(G, pos, node_size=800, node_color='lightblue', edgecolors='black')
         nx.draw_networkx_edges(G, pos, width=2, edge_color='gray')
-        nx.draw_networkx_labels(G, pos, font_size=14, font_weight='bold')
-
-        plt.title("Входной граф", fontsize=16)
+        nx.draw_networkx_labels(G, pos, font_size=14, font_weight='normal', font_family='sans-serif')
+        
+        plt.title("Граф", fontsize=16)
         plt.axis('off')
 
         if filename:
-            plt.savefig(filename, dpi=300, bbox_inches='tight')
-            print(f"Граф сохранён в файл: {filename}")
+            if subdir:
+                os.makedirs(subdir, exist_ok=True)
+                full_path = os.path.join(subdir, filename)
+            else:
+                full_path = filename
+            plt.savefig(full_path, dpi=300, bbox_inches='tight')
+            print(f"Граф сохранён в файл: {full_path}")
 
-        plt.show()
+        if show:
+            plt.show()
+        else:
+            plt.close()
+
+    @staticmethod
+    def apply_local_complementation(edges, vertex):
+        # сбор соседей вершины vertex
+        neighbors = set()
+        for u, v in edges:
+            if u == vertex:
+                neighbors.add(v)
+            elif v == vertex:
+                neighbors.add(u)
+
+        # новое множество ребер (не инцидентные vertex)
+        new_edges = set()
+        for u, v in edges:
+            if u != vertex and v != vertex:
+                new_edges.add((u, v))
+
+        # инвертирование ребер между соседями
+        nb_list = list(neighbors)
+        for i in range(len(nb_list)):
+            for j in range(i+1, len(nb_list)):
+                a, b = nb_list[i], nb_list[j]
+                e = normalize_edge(a, b)
+                if e in new_edges:
+                    new_edges.remove(e)
+                else:
+                    new_edges.add(e)
+
+        # + ребра от vertex к соседям
+        for nb in neighbors:
+            new_edges.add(normalize_edge(vertex, nb))
+
+        return new_edges
+
+    # создание нового графа полученного локальным дополнением в вершине vertex
+    def local_complementation(self, vertex):
+        if vertex not in self.vertices:
+            raise ValueError("вершина не найдена")
+    
+        new_edges = self.apply_local_complementation(self.edges, vertex)
+
+        return GraphState(self.vertices, list(new_edges))
+    
+    # на выходе - orbit_states - список всех graph states LC эквив данному (включая исходное)
+    def lc_orbit(self):
+        start_edges = frozenset(self.edges) # неизменяемое представление рёбер исходного графа (+ ключ в словаре visited_edges)
+        visited_edges = set() # множество уже обработанных ребер
+        visited_edges.add(start_edges) 
+        queue = [start_edges] # очередь ребер для bfs которые нужно обработать
+        orbit_states = [self]
+
+        while queue:
+            current_edges = queue.pop(0)
+            
+            # для каждой вершины применяется локальное дополнение
+            for v in self.vertices:
+                new_edges_set = self.apply_local_complementation(set(current_edges), v)
+                new_edges_frozen = frozenset(new_edges_set)
+                
+                if new_edges_frozen not in visited_edges:
+                    visited_edges.add(new_edges_frozen)
+                    queue.append(new_edges_frozen)
+                    orbit_states.append(GraphState(self.vertices, list(new_edges_set)))
+        return orbit_states
 
 
 
 if __name__ == '__main__':
-    # V = [1, 2, 3, 4]
-    # E = [(1, 2), (2, 3), (3, 4)]
-    V = [1, 2, 3, 4, 5, 6]
-    E = [(1, 2), (2, 3), (4, 5), (5, 6)]
+    # V = [1, 2, 3, 4, 5, 6]
+    # E = [(1, 2), (2, 3), (4, 5), (5, 6)]
+    V = [1,2,3,4]
+    E = [(1,2),(2,3),(3,4)]
 
     # экземпляр класса
     gs = GraphState(V, E)
@@ -190,5 +264,14 @@ if __name__ == '__main__':
     print("Вероятностные амплитуды сохранены в graph_state_via_gates.csv")
 
     # можно получить массив амплитуд отдельно при необходимости геттером
-    amps = gs.get_amplitudes()
-    print("полученные вероятностные амплитуды: \n", amps)
+    # amps = gs.get_amplitudes()
+    # print("полученные вероятностные амплитуды: \n", amps)
+
+    orbit = gs.lc_orbit()
+    print(f"найдено {len(orbit)} состояний в LC орбите!")
+    for i, state in enumerate(orbit):
+        state.visualize(filename=f'lc_orbit_{i}.png', subdir='lc_orbit', show=False)
+
+    # gs_lc = gs.local_complementation(2)
+    # gs_lc.visualize(filename='lc_vertex_2.png', subdir='lc_results', show=True)
+    # print("ребра после локального дополнения в вершине 2:", gs_lc.edges)
