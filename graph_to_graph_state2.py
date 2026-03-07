@@ -155,7 +155,7 @@ class GraphState:
                 basis_str = format(b, '0{}b'.format(N))
                 writer.writerow([basis_str, amps[b]])
 
-    # визуализация входного графов (входных/локально дополненных)
+    # визуализация графов (входных/локально дополненных)
     def visualize(self, filename=None, subdir=None, show=True):
         G = nx.Graph()
         G.add_nodes_from(self.vertices)
@@ -248,14 +248,98 @@ class GraphState:
                     queue.append(new_edges_frozen)
                     orbit_states.append(GraphState(self.vertices, list(new_edges_set)))
         return orbit_states
+    
+    # вычисление ранга Шмидта для подмножества subset над полем F_2
+    def schmidt_rank(self, subset):
+        # 1
+        subset = set(subset)
+        complement = set(self.vertices) - subset # множество вершин которые не входят в subset
+        if not complement or not subset:
+            return 0
+
+        # 2 - построение M = Γ_AB матрицы смежности 
+        subset_list = list(subset)
+        comp_list = list(complement)
+
+        rows = []
+        for a in subset_list:
+            row = []
+            for b in comp_list:
+                if (a, b) in self.edges or (b, a) in self.edges:
+                    row.append(1)
+                else:
+                    row.append(0)
+            rows.append(row)
+
+        M = np.array(rows, dtype=int) 
+
+        # 3 - вычисление ранга над F_2 методом Гаусса
+        # https://mathprofi.ru/metod_gaussa_dlya_chainikov.html
+        row, col = M.shape
+        rank = 0
+        M = M.copy()
+        for c in range(col):
+            # поиск строки с 1 в столбце c, начиная с rank
+            pivot = None
+            for r in range(rank, row):
+                if M[r, c] == 1:
+                    pivot = r
+                    break
+            if pivot is None:
+                continue
+
+            if pivot != rank:
+                M[[rank, pivot]] = M[[pivot, rank]]
+
+            # проход по всем строкам, если в ней в столбце c есть 1, xor с строкой rank -> обнуление единиц в столбце c
+            for r in range(row):
+                if r != rank and M[r, c] == 1:
+                    M[r] ^= M[rank]
+            rank += 1
+
+        return rank
+    
+    # сбор рангов Шмидта для всех возможных разбиений вершин графа на две группы
+    # возвращает словарь где ключ - размер меньшей части разбиения, значение - список рангов для всех таких разбиений
+    def schmidt_rank_list(self):
+        n = len(self.vertices)
+        ranks_by_size = defaultdict(list)
+
+        for mask in range(1, (1 << n) - 1):
+            # бит i = 1 -> вершина с индексом i входит в подмножество 
+            subset_indices = [] # список индексов вершин в подмножестве
+            for i in range(n):
+                if (mask >> i) & 1:
+                    subset_indices.append(i)
+
+            size = len(subset_indices)
+            # разбиение (A, B) и (B, A) дают одинаковый ранг Шмидта (ранг матрицы Γ_AB не меняется при транспонировании), 
+            # достаточно рассматривать только те подмножества, размер которых не превосходит половины всех вершин
+            if size <= n // 2: 
+                subset_vertices = []
+                for i in subset_indices:
+                    subset_vertices.append(self.vertices[i])   
+                rank = self.schmidt_rank(subset_vertices)
+                ranks_by_size[size].append(rank)
+
+        return dict(ranks_by_size)
+    
+    def max_schmidt_rank(self):
+        rank_dict = self.schmidt_rank_list()
+        max_rank = 0
+        for ranks in rank_dict.values():
+            if ranks:
+                max_rank = max(max_rank, max(ranks))
+        
+        return max_rank
 
 
 
 if __name__ == '__main__':
-    # V = [1, 2, 3, 4, 5, 6]
-    # E = [(1, 2), (2, 3), (4, 5), (5, 6)]
-    V = [1,2,3,4]
-    E = [(1,2),(2,3),(3,4)]
+    V = [1, 2, 3, 4, 5, 6]
+    E = [(1, 2), (2, 3), (4, 5), (5, 6)]
+    # V = [1,2,3,4]
+    # E = [(1,2),(2,3),(3,4)]
 
     # экземпляр класса
     gs = GraphState(V, E)
@@ -267,10 +351,17 @@ if __name__ == '__main__':
     # amps = gs.get_amplitudes()
     # print("полученные вероятностные амплитуды: \n", amps)
 
-    orbit = gs.lc_orbit()
-    print(f"найдено {len(orbit)} состояний в LC орбите!")
-    for i, state in enumerate(orbit):
-        state.visualize(filename=f'lc_orbit_{i}.png', subdir='lc_orbit', show=False)
+    # orbit = gs.lc_orbit()
+    # print(f"найдено {len(orbit)} состояний в LC орбите!")
+    # for i, state in enumerate(orbit):
+    #     state.visualize(filename=f'lc_orbit_{i}.png', subdir='lc_orbit', show=False)
+
+    rank_list = gs.schmidt_rank_list()
+    print("ранги Шмидта для каждого размера меньшей части:")
+    for size, ranks in sorted(rank_list.items()):
+        print(f"\tразмер {size}: {ranks}")
+    max_rank = gs.max_schmidt_rank()
+    print(f"максимальный ранг Шмидта: {max_rank}")
 
     # gs_lc = gs.local_complementation(2)
     # gs_lc.visualize(filename='lc_vertex_2.png', subdir='lc_results', show=True)
