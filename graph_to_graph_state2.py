@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from qutip import basis, tensor, expand_operator, Qobj
 from qutip.qip.operations import cnot, hadamard_transform
 from collections import defaultdict, deque
+from itertools import combinations
 import os
 
 
@@ -254,16 +255,16 @@ class GraphState:
 
         n = len(orbit) # количество графов в орбите
         rows = (n + cols - 1) // cols
-        fig, axes = plt.subplots(rows, cols, figsize=figsize) # создал фигуру, массив подграфиков axes размера rows * cols
+        fig, subgraphs = plt.subplots(rows, cols, figsize=figsize) # создал фигуру, массив подграфиков subgraphs размера rows * cols
 
-        # преобразование в одномерный массив объектов axes
+        # преобразование в одномерный массив объектов subgraphs
         if rows == 1 and cols == 1:
-            axes = [axes]
+            subgraphs = [subgraphs]
         else:
-            axes = axes.flatten()
+            subgraphs = subgraphs.flatten()
         
         for i, state in enumerate(orbit):
-            ax = axes[i]
+            ax = subgraphs[i]
             G = nx.Graph()
             G.add_nodes_from(state.vertices)
             G.add_edges_from(state.edges)
@@ -277,8 +278,8 @@ class GraphState:
             ax.set_title(f"граф {i+1}", fontsize=12)
             ax.axis('off')
 
-        for j in range(n, len(axes)):
-            axes[j].axis('off')
+        for j in range(n, len(subgraphs)):
+            subgraphs[j].axis('off')
         plt.tight_layout()
         
         if filename:
@@ -378,6 +379,53 @@ class GraphState:
                 max_rank = max(max_rank, max(ranks))
         
         return max_rank
+
+    @staticmethod
+    def is_graph_state(psi_vector, vertices, tol=1e-8, verbose=False):
+        N = len(vertices)
+        # expected_amplitudes = 1.0 / np.sqrt(2**N)
+        expected_norm = 1.0 / np.sqrt(2**N)
+
+        real_amplitudes = psi_vector.full().flatten()
+
+        # 1 необходимое условие - проверка модулей вероятностных амплитуд
+        if not np.allclose(np.abs(real_amplitudes), expected_norm, atol=tol):
+            if verbose:
+                print("Необходимое условие графовости состояния не выполнено! Модули вероятностных амплитуд не равны.")
+                print(f"Ожидаемое значение вероятностных амплитуд: {expected_norm},\n    полученные модули: {np.abs(real_amplitudes)}")
+            return False, None
+        
+
+
+        num_vertices = N
+        # список всех возможных пар индексов вершин 
+        # пример: combinations(range(4), 3) --> (0,1,2), (0,1,3), (0,2,3), (1,2,3)
+        edges_possible_indices = list(combinations(range(num_vertices), 2))
+        num_edges = len(edges_possible_indices) # количество возможных ребер: C(N,2)
+
+        for mask in range(1 << num_edges):
+            # список ребер с метками вершин
+            edges = []
+            for j in range(num_edges):
+                if (mask >> j) & 1:
+                    i, k = edges_possible_indices[j]
+                    edges.append((vertices[i],vertices[k]))
+
+            candidate_state = GraphState(vertices, edges)
+            candidate_amps = candidate_state.state_vector.full().flatten()
+
+            # сравнение с точностью до глобальной фазы
+            if np.allclose(real_amplitudes, candidate_amps, atol=tol):
+                if verbose:
+                    print(f"Соответствует графу с ребрами: {edges}")
+                return True, candidate_state
+            if np.allclose(real_amplitudes, -candidate_amps, atol=tol):
+                if verbose:
+                    print(f"Соответствует графу с ребрами (с глобальной фазой -1): {edges}")
+                return True, candidate_state
+
+        print("Не найдено соответствующего графа!")
+        return False, None
 
 
 
