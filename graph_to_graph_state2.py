@@ -249,6 +249,52 @@ class GraphState:
                     orbit_states.append(GraphState(self.vertices, list(new_edges_set)))
         return orbit_states
     
+    def visualize_orbit(self, cols=4, figsize=(12, 12), filename=None, subdir=None, show=True):
+        orbit = self.lc_orbit()
+
+        n = len(orbit) # количество графов в орбите
+        rows = (n + cols - 1) // cols
+        fig, axes = plt.subplots(rows, cols, figsize=figsize) # создал фигуру, массив подграфиков axes размера rows * cols
+
+        # преобразование в одномерный массив объектов axes
+        if rows == 1 and cols == 1:
+            axes = [axes]
+        else:
+            axes = axes.flatten()
+        
+        for i, state in enumerate(orbit):
+            ax = axes[i]
+            G = nx.Graph()
+            G.add_nodes_from(state.vertices)
+            G.add_edges_from(state.edges)
+
+            pos = nx.spring_layout(G, seed=42)
+
+            nx.draw_networkx_nodes(G, pos, ax=ax, node_size=300, node_color='lightblue', edgecolors='black')
+            nx.draw_networkx_edges(G, pos, ax=ax, width=1.5, edge_color='gray')
+            nx.draw_networkx_labels(G, pos, ax=ax, font_size=10, font_weight='bold')
+
+            ax.set_title(f"граф {i+1}", fontsize=12)
+            ax.axis('off')
+
+        for j in range(n, len(axes)):
+            axes[j].axis('off')
+        plt.tight_layout()
+        
+        if filename:
+            if subdir:
+                os.makedirs(subdir, exist_ok=True)
+                full_path = os.path.join(subdir, filename)
+            else:
+                full_path = filename
+            plt.savefig(full_path, dpi=300, bbox_inches='tight')
+            print(f"Орбита сохранена в файл: {filename}")
+
+        if show:
+            plt.show()
+        else:
+            plt.close()
+    
     # вычисление ранга Шмидта для подмножества subset над полем F_2
     def schmidt_rank(self, subset):
         # 1
@@ -271,7 +317,7 @@ class GraphState:
                     row.append(0)
             rows.append(row)
 
-        M = np.array(rows, dtype=int) 
+        M = np.array(rows, dtype=int) % 2
 
         # 3 - вычисление ранга над F_2 методом Гаусса
         # https://mathprofi.ru/metod_gaussa_dlya_chainikov.html
@@ -336,10 +382,10 @@ class GraphState:
 
 
 if __name__ == '__main__':
-    V = [1, 2, 3, 4, 5, 6]
-    E = [(1, 2), (2, 3), (4, 5), (5, 6)]
-    # V = [1,2,3,4]
-    # E = [(1,2),(2,3),(3,4)]
+    # V = [1, 2, 3, 4, 5, 6]
+    # E = [(1, 2), (2, 3), (4, 5), (5, 6)]
+    V = [1,2,3,4]
+    E = [(1,2),(2,3),(3,4)]
 
     # экземпляр класса
     gs = GraphState(V, E)
@@ -355,6 +401,8 @@ if __name__ == '__main__':
     # print(f"найдено {len(orbit)} состояний в LC орбите!")
     # for i, state in enumerate(orbit):
     #     state.visualize(filename=f'lc_orbit_{i}.png', subdir='lc_orbit', show=False)
+
+    gs.visualize_orbit(filename='lc_orbit.png', subdir='lc_orbit', show=False)
 
     rank_list = gs.schmidt_rank_list()
     print("ранги Шмидта для каждого размера меньшей части:")
