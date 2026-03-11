@@ -24,7 +24,7 @@ class GraphState:
         self.validate_input()
         self.state_vector = None
         
-        self.build()
+        self.build(verbose=False)
 
     def validate_input(self):
         vert_set = set(self.vertices)
@@ -121,15 +121,16 @@ class GraphState:
         psi = psi_temp.permute(perm) # Permutes the tensor structure of a composite object in the given order (perm)
         return psi
 
-    def build(self):
+    def build(self, verbose=False):
         components = self.find_connected_components()
 
         if len(components) == 1:
             self.state_vector = self.build_single_component(self.vertices, self.edges)
         else:
-            print("граф содержит несколько компонент связности:")
-            for i, comp in enumerate(components):
-                print(f"\tкомпонента {i+1}: {comp}")
+            if verbose:
+                print("граф содержит несколько компонент связности:")
+                for i, comp in enumerate(components):
+                    print(f"\tкомпонента {i+1}: {comp}")
 
             self.state_vector = self.build_tensor_product(components)
 
@@ -403,7 +404,7 @@ class GraphState:
         edges_possible_indices = list(combinations(range(num_vertices), 2))
         num_edges = len(edges_possible_indices) # количество возможных ребер: C(N,2)
 
-        for mask in range(1 << num_edges):
+        for mask in range(2**num_edges):
             # список ребер с метками вершин
             edges = []
             for j in range(num_edges):
@@ -424,7 +425,9 @@ class GraphState:
                     print(f"Соответствует графу с ребрами (с глобальной фазой -1): {edges}")
                 return True, candidate_state
 
-        print("Не найдено соответствующего графа!")
+        if verbose:
+            print("Не удалось найти соответствующий граф!")
+
         return False, None
 
 
