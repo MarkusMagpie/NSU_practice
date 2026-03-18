@@ -479,9 +479,9 @@ class GraphState:
             
             # проверка близости <psi|P|psi> к 1
             if abs(abs(expectation) - 1) < tol:
-                # stabilizers.append(''.join(s))
+                sign = 1 if expectation.real > 0 else -1
                 vec = op_to_bits(s)
-                ops_and_vecs.append((s, vec))
+                ops_and_vecs.append((s, vec, sign))
 
         print("операторы для которых <psi|P|psi> = 1:")
         print(ops_and_vecs)
@@ -494,9 +494,9 @@ class GraphState:
         # проверка независимости найденных операторов (размерность пространства стабилизаторов n)
 
         # привод полученных векторов к виду матрицы и поиск ранга
-        M = np.array([v for _, v in ops_and_vecs], dtype=int)
+        M = np.array([v for _, v, _ in ops_and_vecs], dtype=int)
         # список операторов
-        op_list = [op for op, _ in ops_and_vecs]
+        op_list = [(op, sign) for op, _, sign in ops_and_vecs]
 
         # проверка коммутативности двух векторов из M (проверочной матрицы)
         def symplectic_product(v1, v2):
@@ -539,7 +539,13 @@ class GraphState:
         
         if rank == n:
             # n ЛНЗ генераторов
-            generators = op_list[:n]
+            generators = []
+            for op, sign in op_list[:n]:
+                if sign == -1:
+                    op_str = '-' + ''.join(op)
+                else:
+                    op_str = ''.join(op)
+                generators.append(op_str)
             return True, generators
         else:
             return False, None

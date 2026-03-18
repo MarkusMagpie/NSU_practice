@@ -9,5 +9,9 @@ if __name__ == '__main__':
 
 
     is_stab, gens = GraphState.is_stabilizer_state(ghz, [1,2,3])
-    print(is_stab)
-    print(gens) 
+    if is_stab:
+        print("состояние является стабилизатором!")
+        print(f"найденные генераторы: {gens}")
+    else:
+        print("состояние не является стабилизатором (ошибка)")
+    # print(gens) 
