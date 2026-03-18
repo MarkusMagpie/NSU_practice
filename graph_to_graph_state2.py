@@ -2,10 +2,10 @@ import csv
 import numpy as np
 import networkx as nx
 import matplotlib.pyplot as plt
-from qutip import basis, tensor, expand_operator, Qobj
+from qutip import basis, tensor, expand_operator, Qobj, qeye, sigmax, sigmay, sigmaz
 from qutip.qip.operations import cnot, hadamard_transform
 from collections import defaultdict, deque
-from itertools import combinations
+from itertools import combinations, product
 import os
 
 
@@ -429,7 +429,120 @@ class GraphState:
             print("Не удалось найти соответствующий граф!")
 
         return False, None
+    
+    """
+    Является ли состояние |psi> стабилизаторным для системы из len(vertices) кубитов?
+    return (True, generators) или (False, None), где generators - список строковых представлений ЛНЗ генераторов стабилизатора
+    """
+    def is_stabilizer_state(psi, vertices, tol=1e-8):
+        n = len(vertices)
+        pauli_matrices = {'I': qeye(2), 'X': sigmax(), 'Y': sigmay(), 'Z': sigmaz()}
 
+        # преобразование операторов в двоичные векторы длины 2n [X,Z]
+        def op_to_bits(s):
+            x = []
+            z = []
+            for ch in s:
+                if ch == 'I':
+                    x.append(0) 
+                    z.append(0)
+                elif ch == 'X':
+                    x.append(1)
+                    z.append(0)
+                elif ch == 'Y':
+                    x.append(1) 
+                    z.append(1)
+                elif ch == 'Z':
+                    x.append(0)
+                    z.append(1)
+            return x + z  #  X и Z в один вектор длины 2n
+
+        # все возможные комбинации из n символов (I,X,Y,Z)
+        all_strings = product(['I','X','Y','Z'], repeat=n)
+
+        # stabilizers = []  # операторы для которых <psi|P|psi> = 1
+        ops_and_vecs = [] # кортежи (операторы для которых <psi|P|psi> = 1 + их веткоры)
+
+        for s in all_strings:
+            # тензорное произведение операторов Паули
+            op_list = []
+            for ch in s:
+                op_list.append(pauli_matrices[ch])
+            P = tensor(op_list)
+
+            #  <psi|P|psi>
+            val = psi.dag() * P * psi
+            if isinstance(val, Qobj):
+                expectation = val.tr()
+            else:
+                expectation = val
+            
+            # проверка близости <psi|P|psi> к 1
+            if abs(abs(expectation) - 1) < tol:
+                # stabilizers.append(''.join(s))
+                vec = op_to_bits(s)
+                ops_and_vecs.append((s, vec))
+
+        print("операторы для которых <psi|P|psi> = 1:")
+        print(ops_and_vecs)
+
+        # найденные стабилизаторные операторы образуют группу размера 2^n
+        if len(ops_and_vecs) != 2**n:
+            print(ops_and_vecs)
+            return False, None
+        
+        # проверка независимости найденных операторов (размерность пространства стабилизаторов n)
+
+        # привод полученных векторов к виду матрицы и поиск ранга
+        M = np.array([v for _, v in ops_and_vecs], dtype=int)
+        # список операторов
+        op_list = [op for op, _ in ops_and_vecs]
+
+        # проверка коммутативности двух векторов из M (проверочной матрицы)
+        def symplectic_product(v1, v2):
+            n2 = len(v1) // 2
+            x1, z1 = v1[:n2], v1[n2:]
+            x2, z2 = v2[:n2], v2[n2:]
+            return (np.dot(x1, z2) + np.dot(x2, z1)) % 2
+
+        for i in range(len(M)):
+            for j in range(i+1, len(M)):
+                if symplectic_product(M[i], M[j]) != 0:
+                    return False, None  # не коммутируют
+
+        # вычисление ранга методом Гаусса над F_2
+        row, col = M.shape
+        rank = 0
+        for c in range(col):
+            # поиск строки с 1 в столбце c, начиная с rank
+            pivot = None
+            for r in range(rank, row):
+                if M[r, c] == 1:
+                    pivot = r
+                    break
+            if pivot is None:
+                continue
+            
+            # pivot стал на место строки rank
+            if pivot != rank:
+                M[[rank, pivot]] = M[[pivot, rank]]
+                op_list[rank], op_list[pivot] = op_list[pivot], op_list[rank]
+            
+            # проход по всем строкам, если в ней в столбце c есть 1, xor с строкой rank -> обнуление единиц в столбце c
+            for r in range(row):
+                if r != rank and M[r, c] == 1:
+                    M[r] ^= M[rank]
+            rank += 1
+
+            if rank == n:
+                break
+        
+        if rank == n:
+            # n ЛНЗ генераторов
+            generators = op_list[:n]
+            return True, generators
+        else:
+            return False, None
 
 
 if __name__ == '__main__':

@@ -69,20 +69,21 @@ def test_is_graph_state(max_n=7, num_trials=5):
         for trial in range(num_trials):
             phases = np.random.choice([1, -1], size=2**n) # случайные фазы
             amp = 1.0 / np.sqrt(2**n) * phases
-            random_psi = Qobj(amp.reshape(-1,1), dims=[[2]*n, [1]*n])
-            state_str = format_state_string(random_psi, n_terms=min(8, 2**n))
-
-            found, _ = GraphState.is_graph_state(random_psi, vertices, verbose=False)
+            random_psi = Qobj(arg=amp.reshape(len(amp),1), dims=[[2]*n, [1]*n]) # state vector
             
+            found, found_state = GraphState.is_graph_state(random_psi, vertices, verbose=False)
+            
+            state_str = format_state_string(random_psi, n_terms=min(8, 2**n))
             print(f"    {trial+1}: {state_str}")
             if found:
                 found_graph_count += 1
                 print(f"    {trial+1}: состояние является графовым")
-                print(f"        Найденный граф: V = {_.vertices}, E = {_.edges}")
+                print(f"        Найденный граф: V = {found_state.vertices}, E = {found_state.edges}")
+                found_state.visualize() # визуализация графа найденного графового состояния
 
             else:
                 print(f"    {trial+1}: состояние не является графовым")
-        print(f"    Результат: {num_trials - found_graph_count} состояний с равными модулями вероятностных амплитуд и произвольными фазами отвергнуты")
+        print(f"    Результат: {num_trials - found_graph_count} из {num_trials} состояний с равными модулями вероятностных амплитуд и произвольными фазами отвергнуты")
 
 
 
@@ -99,7 +100,7 @@ def test_is_graph_state(max_n=7, num_trials=5):
             else:
                 print(f"    {trial+1}: графовое состояние найдено! Найденный граф: V = {_.vertices}, E = {_.edges}")
                 found_graph_count2 += 1
-        print(f"    {num_trials - found_graph_count2} случайных состояний отвергнуты")
+        print(f"    {num_trials - found_graph_count2} из {num_trials} случайных состояний отвергнуты")
 
 
 if __name__ == '__main__':
@@ -107,4 +108,15 @@ if __name__ == '__main__':
     # E = [(1,2),(2,3),(3,4)]
     # E = [(1,2),(1,3),(1,4)]
 
-    test_is_graph_state(max_n=5, num_trials=3)
+    test_is_graph_state(5, 3)
+
+    # V = [1,2,3]
+    # E = [(1,2),(2,3)]
+    # gs = GraphState(V, E)
+    # psi = gs.state_vector
+    # found, found_gs = GraphState.is_graph_state(psi, V, verbose=False)
+    # if found:
+    #     print("состояние является графовым!")
+    #     print(f"найденный граф: V={found_gs.vertices}, E={found_gs.edges}")
+    # else:
+    #     print("состояние не является графовым (ошибка)")
