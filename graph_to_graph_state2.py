@@ -60,6 +60,36 @@ class GraphState:
                             queue.append(nei)
                 components.append(comp)
         return components
+    
+    # графовое состояние сепарабельно <=> граф несвязный 
+    def is_separable(self):
+        if self.state_vector is None:
+            self.build()
+
+        components = self.find_connected_components()
+        if len(components) == 1:
+            return False, None
+        
+        # список компонент
+        comp_states = []
+        for comp in components:
+            comp_edges = [(u, v) for (u, v) in self.edges if (u in comp and v in comp)]
+            comp_states.append(GraphState(comp, comp_edges))
+        return True, comp_states
+
+    """
+    является ли состояние ПОЛНОСТЬЮ сепарабельным (тензорным произведением однокубитных состояний)
+    графовое состояние полностью сепарабельное <=> граф без ребер
+    """    
+    def is_fully_separable(self, tol=1e-8):
+        n = len(self.vertices)
+
+        for i in range(n):
+            rank = self.schmidt_rank([self.vertices[i]])
+            if rank > 0:  # есть запутанность между i и остальными
+                return False
+            
+        return True
 
     # графовое состояние одной связной компоеннты
     def build_single_component(self, vertices, edges):
@@ -140,6 +170,7 @@ class GraphState:
     def get_amplitudes(self):
         if self.state_vector is None:
             return None
+        
         return self.state_vector.full().flatten() # извлечение амплитуд из вектора |psi>. Получаю одномерный массив из 2^N элементов
 
     # сохранялка в csv файл всех базисных состояний
@@ -325,7 +356,6 @@ class GraphState:
         # https://mathprofi.ru/metod_gaussa_dlya_chainikov.html
         row, col = M.shape
         rank = 0
-        M = M.copy()
         for c in range(col):
             # поиск строки с 1 в столбце c, начиная с rank
             pivot = None
@@ -429,6 +459,18 @@ class GraphState:
             print("Не удалось найти соответствующий граф!")
 
         return False, None
+    
+    # является ли состояние переданное массивом амплитуд графовым?
+    @staticmethod
+    def from_amplitudes(amplitudes, tol=1e-8):
+        n = int(round(np.log2(len(amplitudes))))
+        if 2**n != len(amplitudes):
+            raise ValueError("Длина массива вероятностных амплитуд не является степенью двойки")
+        
+        vertices = list(range(1, n+1))
+        psi = Qobj(amplitudes, dims=[[2]*n, [1]*n])
+        
+        return GraphState.is_graph_state(psi, vertices, tol)
     
     """
     Является ли состояние |psi> стабилизаторным для системы из len(vertices) кубитов?
