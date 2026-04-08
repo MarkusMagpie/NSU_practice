@@ -25,21 +25,6 @@ def build_state():
         'vertices': vertices
     })
 
-@app.route('/check_graph_state', methods=['POST'])
-def check_graph_state():
-    data = request.get_json()
-    vertices = data['vertices']
-    amplitudes = data['amplitudes']
-    amps = np.array(amplitudes, dtype=complex)
-    n = len(vertices)
-    psi = Qobj(amps, dims=[[2]*n, [1]*n])
-    is_graph, found_state = GraphState.is_graph_state(psi, vertices)
-    
-    if is_graph:
-        return jsonify({'is_graph': True, 'edges': found_state.edges})
-    else:
-        return jsonify({'is_graph': False, 'edges': None})
-
 @app.route('/schmidt_ranks', methods=['POST'])
 def schmidt_ranks():
     data = request.get_json()
@@ -50,6 +35,25 @@ def schmidt_ranks():
     max_rank = gs.max_schmidt_rank()
 
     return jsonify({'rank_list': rank_list, 'max_rank': max_rank})
+
+@app.route('/check_graph')
+def check_graph():
+    return render_template('check_graph.html')
+
+@app.route('/check_graph_submit', methods=['POST'])
+def check_graph_submit():
+    data = request.get_json()
+    n = data['n']  # число кубитов
+    signs = data['signs']  # список знаков амплитуд например длины 2^n
+    # амплитуды: 1/sqrt(2^n) * (+1 или -1)
+    norm = 1.0 / np.sqrt(2**n)
+    amplitudes = [norm * (1 if s == '+' else -1) for s in signs]
+    is_graph, found_state = GraphState.from_amplitudes(amplitudes)
+    
+    if is_graph:
+        return jsonify({'is_graph': True, 'edges': found_state.edges})
+    else:
+        return jsonify({'is_graph': False, 'edges': None})
 
 
 

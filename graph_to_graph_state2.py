@@ -7,6 +7,8 @@ from qutip.qip.operations import cnot, hadamard_transform
 from collections import defaultdict, deque
 from itertools import combinations, product
 import os
+import time
+import concurrent.futures
 
 
 
@@ -15,6 +17,25 @@ def cnot_manual():
 
 def normalize_edge(u, v):
     return (u, v) if u < v else (v, u)
+
+# вспомогательная функция для проверки диапазона масок (запускается в отдельном процессе)
+def _check_mask_range(vertices, edges_possible_indices, real_amplitudes, tol, mask_range):
+    for mask in range(mask_range[0], mask_range[1]):
+        edges = []
+        for j in range(len(edges_possible_indices)):
+            if (mask >> j) & 1:
+                i, k = edges_possible_indices[j]
+                edges.append((vertices[i], vertices[k]))
+
+        candidate_state = GraphState(vertices, edges)
+        candidate_amps = candidate_state.state_vector.full().flatten()
+
+        if np.allclose(real_amplitudes, candidate_amps, atol=tol):
+            return edges, candidate_state
+        if np.allclose(real_amplitudes, -candidate_amps, atol=tol):
+            return edges, candidate_state
+        
+    return None
 
 
 class GraphState:
@@ -426,8 +447,6 @@ class GraphState:
                 print(f"Ожидаемое значение вероятностных амплитуд: {expected_norm},\n    полученные модули: {np.abs(real_amplitudes)}")
             return False, None
         
-
-
         num_vertices = N
         # список всех возможных пар индексов вершин 
         # пример: combinations(range(4), 3) --> (0,1,2), (0,1,3), (0,2,3), (1,2,3)
@@ -460,6 +479,46 @@ class GraphState:
 
         return False, None
     
+    @staticmethod
+    def is_graph_state_parallel(psi_vector, vertices, tol=1e-8, verbose=False, num_workers=None):
+        N = len(vertices)
+        expected_norm = 1.0 / np.sqrt(2**N)
+        real_amplitudes = psi_vector.full().flatten()
+
+        if not np.allclose(np.abs(real_amplitudes), expected_norm, atol=tol):
+            if verbose:
+                print("Необходимое условие графовости состояния не выполнено! Модули вероятностных амплитуд не равны.")
+                print(f"Ожидаемое значение вероятностных амплитуд: {expected_norm},\n    полученные модули: {np.abs(real_amplitudes)}")
+            return False, None
+
+        num_vertices = N
+        edges_possible_indices = list(combinations(range(num_vertices), 2))
+        num_edges = len(edges_possible_indices)
+        total_masks = 1 << num_edges
+
+        if num_workers is None:
+            import os
+            num_workers = os.cpu_count()
+
+        # диапазон масок разбиваю на части
+        chunk_size = (total_masks + num_workers - 1) // num_workers
+        ranges = [(i, i + chunk_size) for i in range(0, total_masks, chunk_size)]
+
+        with concurrent.futures.ProcessPoolExecutor(num_workers) as executor:
+            futures = [executor.submit(_check_mask_range, vertices, edges_possible_indices, real_amplitudes, tol, r) for r in ranges]
+            # обработка резульаттов работы _check_mask_range по мере выполнения
+            for future in concurrent.futures.as_completed(futures):
+                res = future.result()
+                if res is not None:
+                    edges, candidate_state = res
+                    if verbose:
+                        print(f"Соответствует графу с ребрами: {edges}")
+                    return True, candidate_state
+
+        if verbose:
+            print("Не удалось найти соответствующий граф.")
+        return False, None
+    
     # является ли состояние переданное массивом амплитуд графовым?
     @staticmethod
     def from_amplitudes(amplitudes, tol=1e-8):
@@ -470,7 +529,8 @@ class GraphState:
         vertices = list(range(1, n+1))
         psi = Qobj(amplitudes, dims=[[2]*n, [1]*n])
         
-        return GraphState.is_graph_state(psi, vertices, tol)
+        # return GraphState.is_graph_state(psi, vertices, tol)
+        return GraphState.is_graph_state_parallel(psi, vertices, tol)
     
     """
     Является ли состояние |psi> стабилизаторным для системы из len(vertices) кубитов?
@@ -593,36 +653,18 @@ class GraphState:
             return False, None
 
 
+
 if __name__ == '__main__':
-    # V = [1, 2, 3, 4, 5, 6]
-    # E = [(1, 2), (2, 3), (4, 5), (5, 6)]
-    V = [1,2,3,4]
-    E = [(1,2),(2,3),(3,4)]
+    V = [1,2,3,4,5,6,7]
+    E = [(1,2),(2,3),(3,4), (4,5), (5,6), (6,7)]
 
-    # экземпляр класса
     gs = GraphState(V, E)
-    gs.visualize(filename='input_graph.png')
-    gs.save_amplitudes('graph_state_via_gates.csv')
-    print("Вероятностные амплитуды сохранены в graph_state_via_gates.csv")
+    psi = gs.state_vector
 
-    # можно получить массив амплитуд отдельно при необходимости геттером
-    # amps = gs.get_amplitudes()
-    # print("полученные вероятностные амплитуды: \n", amps)
+    t0 = time.time()
+    is_graph, _ = GraphState.is_graph_state(psi, V)
+    print(f"Последовательно: {time.time()-t0:.2f}s")
 
-    # orbit = gs.lc_orbit()
-    # print(f"найдено {len(orbit)} состояний в LC орбите!")
-    # for i, state in enumerate(orbit):
-    #     state.visualize(filename=f'lc_orbit_{i}.png', subdir='lc_orbit', show=False)
-
-    gs.visualize_orbit(filename='lc_orbit.png', subdir='lc_orbit', show=False)
-
-    rank_list = gs.schmidt_rank_list()
-    print("ранги Шмидта для каждого размера меньшей части:")
-    for size, ranks in sorted(rank_list.items()):
-        print(f"\tразмер {size}: {ranks}")
-    max_rank = gs.max_schmidt_rank()
-    print(f"максимальный ранг Шмидта: {max_rank}")
-
-    # gs_lc = gs.local_complementation(2)
-    # gs_lc.visualize(filename='lc_vertex_2.png', subdir='lc_results', show=True)
-    # print("ребра после локального дополнения в вершине 2:", gs_lc.edges)
+    t0 = time.time()
+    is_graph, _ = GraphState.is_graph_state_parallel(psi, V)
+    print(f"Параллельно: {time.time()-t0:.2f}s")
