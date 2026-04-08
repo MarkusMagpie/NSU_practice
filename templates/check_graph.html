@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Проверка графовости по амплитудам</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/vis-network.min.js"></script>
+    <script src="/static/js/check_graph.js"></script>
+</head>
+<body>
+    <h1>Проверка, является ли состояние графовым</h1>
+    <div>
+        <label>Число кубитов (n): <input id="n" type="number" min="1" max="7" value="4"></label><br>
+        <button id="generateTable">Сгенерировать таблицу</button>
+        <button id="randomSigns">Случайные знаки</button>
+        <button id="checkBtn">Проверить графовость</button><br>
+        <a href="/">На главную</a>
+    </div>
+    <div id="tableContainer"></div>
+    <div id="result"></div>
+    <div id="graph"></div>
+</body>
+</html>
