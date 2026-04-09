@@ -64,8 +64,13 @@ function Schmidt_ranks() {
         contentType: 'application/json',
         data: JSON.stringify({vertices: vertices, edges: edges}),
         success: function(data) {
-            let html = `<h3>Ранги Шмидта:</h3><pre>${JSON.stringify(data.rank_list, null, 2)}</pre><p>Максимальный ранг: ${data.max_rank}</p>`;
-            $('#schmidtResult').html(html); // в отдельный контейнер
+            let html = '<h3>Ранги Шмидта:</h3>';
+            for (let size in data.rank_list) {
+                let ranks = data.rank_list[size];
+                html += `<p>Размер разбиения${size}: [${ranks.join(', ')}] (${ranks.length} разбиений)</p>`;
+            }
+            html += `<p><strong>Максимальный ранг:</strong> ${data.max_rank}</p>`;
+            $('#schmidtResult').html(html);
         }
     });
 };
