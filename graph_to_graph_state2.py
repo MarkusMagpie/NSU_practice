@@ -652,7 +652,118 @@ class GraphState:
         else:
             return False, None
 
+    @staticmethod
+    def is_stabilizer_state_detailed(psi, vertices, tol=1e-8):
+        n = len(vertices)
+        pauli_matrices = {'I': qeye(2), 'X': sigmax(), 'Y': sigmay(), 'Z': sigmaz()}
 
+        def op_to_bits(s):
+            x = []
+            z = []
+            for ch in s:
+                if ch == 'I':
+                    x.append(0) 
+                    z.append(0)
+                elif ch == 'X':
+                    x.append(1)
+                    z.append(0)
+                elif ch == 'Y':
+                    x.append(1) 
+                    z.append(1)
+                elif ch == 'Z':
+                    x.append(0)
+                    z.append(1)
+            return x + z
+
+        all_strings = product(['I','X','Y','Z'], repeat=n)
+        ops_and_vecs = []
+
+        for s in all_strings:
+            op_list = []
+            for ch in s:
+                op_list.append(pauli_matrices[ch])
+            P = tensor(op_list)
+
+            val = psi.dag() * P * psi
+            if isinstance(val, Qobj):
+                expectation = val.tr()
+            else:
+                expectation = val
+            
+            if abs(abs(expectation) - 1) < tol:
+                sign = 1 if expectation.real > 0 else -1
+                vec = op_to_bits(s)
+                ops_and_vecs.append((s, vec, sign))
+
+        # 1 проверка количество операторов
+        if len(ops_and_vecs) != 2**n:
+            return {
+                'is_stabilizer': False,
+                'reason': f'найденные стабилизаторные операторы долны образовать группу размера 2^n, а не {len(ops_and_vecs)}',
+                'ops_and_vecs': [{'op': ''.join(op), 'vec': vec, 'sign': sign} for op, vec, sign in ops_and_vecs]
+            }
+
+        M = np.array([v for _, v, _ in ops_and_vecs], dtype=int)
+        op_list = [(op, sign) for op, _, sign in ops_and_vecs]
+
+        # 2 проверка коммутативности
+        def symplectic_product(v1, v2):
+            n2 = len(v1)//2
+            x1, z1 = v1[:n2], v1[n2:]
+            x2, z2 = v2[:n2], v2[n2:]
+            return (np.dot(x1, z2) + np.dot(x2, z1)) % 2
+
+        for i in range(len(M)):
+            for j in range(i+1, len(M)):
+                if symplectic_product(M[i], M[j]) != 0:
+                    return {
+                        'is_stabilizer': False,
+                        'reason': 'операторы стабилизаторной группы не коммутируют друг с другом',
+                        'ops_and_vecs': [{'op': ''.join(op), 'vec': vec, 'sign': sign} for op, vec, sign in ops_and_vecs]
+                    }
+        
+        # 3 вычисление ранга методом Гаусса над GF(2)
+        row, col = M.shape
+        rank = 0
+        for c in range(col):
+            pivot = None
+            for r in range(rank, row):
+                if M[r, c] == 1:
+                    pivot = r
+                    break
+            if pivot is None:
+                continue
+            if pivot != rank:
+                M[[rank, pivot]] = M[[pivot, rank]]
+                op_list[rank], op_list[pivot] = op_list[pivot], op_list[rank]
+            for r in range(row):
+                if r != rank and M[r, c] == 1:
+                    M[r] ^= M[rank]
+            rank += 1
+            if rank == n:
+                break
+
+        if rank == n:
+            generators = []
+            for op, sign in op_list[:n]:
+                if sign == -1:
+                    op_str = '-' + ''.join(op)
+                else:
+                    op_str = ''.join(op)
+                generators.append(op_str)
+
+            return {
+                'is_stabilizer': True,
+                'generators': generators,
+                'ops_and_vecs': [{'op': ''.join(op), 'vec': vec, 'sign': sign} for op, vec, sign in ops_and_vecs],
+                'rank': rank
+            }
+        else:
+            return {
+                'is_stabilizer': False,
+                'reason': f'ранг проверочной матрицы {rank} < {n}',
+                'ops_and_vecs': [{'op': ''.join(op), 'vec': vec, 'sign': sign} for op, vec, sign in ops_and_vecs],
+            }
 
 if __name__ == '__main__':
     V = [1,2,3,4,5,6,7]

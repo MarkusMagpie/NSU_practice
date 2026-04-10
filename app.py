@@ -54,6 +54,33 @@ def check_graph_submit():
         return jsonify({'is_graph': True, 'edges': found_state.edges})
     else:
         return jsonify({'is_graph': False, 'edges': None})
+    
+@app.route('/check_stabilizer')
+def check_stabilizer():
+    return render_template('check_stabilizer.html')
+
+@app.route('/check_stabilizer_submit', methods=['POST'])
+def check_stabilizer_submit():
+    data = request.get_json()
+    n = data['n']
+    signs = data['signs']  # список +/-/0
+    nonzero_count = sum(1 for s in signs if s != '0')
+    if nonzero_count == 0:
+        return jsonify({'is_stabilizer': False, 'reason': 'Все амплитуды нулевые'})
+    norm = 1.0 / np.sqrt(nonzero_count)
+    amplitudes = []
+    for s in signs:
+        if s == '+':
+            amplitudes.append(norm)
+        elif s == '-':
+            amplitudes.append(-norm)
+        else:
+            amplitudes.append(0.0)
+    psi = Qobj(amplitudes, dims=[[2]*n, [1]*n])
+    vertices = list(range(1, n+1))
+    result = GraphState.is_stabilizer_state_detailed(psi, vertices)
+
+    return jsonify(result)
 
 
 
