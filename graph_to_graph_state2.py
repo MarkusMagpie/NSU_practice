@@ -24,7 +24,7 @@ def _check_mask_range(vertices, edges_possible_indices, real_amplitudes, tol, ma
         edges = []
         for j in range(len(edges_possible_indices)):
             if (mask >> j) & 1:
-                i, k = edges_possible_indices[j]
+                i, k = edges_possible_indices[j] # индексы вершин
                 edges.append((vertices[i], vertices[k]))
 
         candidate_state = GraphState(vertices, edges)
@@ -475,7 +475,7 @@ class GraphState:
                 return True, candidate_state
 
         if verbose:
-            print("Не удалось найти соответствующий граф!")
+            print("Не удалось найти граф соответствующий данному состоянию")
 
         return False, None
     
@@ -502,11 +502,17 @@ class GraphState:
 
         # диапазон масок разбиваю на части
         chunk_size = (total_masks + num_workers - 1) // num_workers
-        ranges = [(i, i + chunk_size) for i in range(0, total_masks, chunk_size)]
+        ranges = []
+        for i in range(0, total_masks, chunk_size):
+            ranges.append((i, i + chunk_size))
 
         with concurrent.futures.ProcessPoolExecutor(num_workers) as executor:
-            futures = [executor.submit(_check_mask_range, vertices, edges_possible_indices, real_amplitudes, tol, r) for r in ranges]
-            # обработка резульаттов работы _check_mask_range по мере выполнения
+            # запуск _check_mask_range в параллельном режиме
+            futures = []
+            for r in ranges:
+                futures.append(executor.submit(_check_mask_range, vertices, edges_possible_indices, real_amplitudes, tol, r))
+            
+            # обработка резульаттов работы _check_mask_range по мере выполнения метода в разных чанках
             for future in concurrent.futures.as_completed(futures):
                 res = future.result()
                 if res is not None:
@@ -516,7 +522,7 @@ class GraphState:
                     return True, candidate_state
 
         if verbose:
-            print("Не удалось найти соответствующий граф.")
+            print("Не удалось найти граф соответствующий данному состоянию")
         return False, None
     
     # является ли состояние переданное массивом амплитуд графовым?
@@ -766,8 +772,8 @@ class GraphState:
             }
 
 if __name__ == '__main__':
-    V = [1,2,3,4,5,6,7]
-    E = [(1,2),(2,3),(3,4), (4,5), (5,6), (6,7)]
+    V = [1,2,3,4,5,6]
+    E = [(1,2),(2,3),(3,4), (4,5), (5,6), (6,1)]
 
     gs = GraphState(V, E)
     psi = gs.state_vector
