@@ -3,6 +3,7 @@ import networkx as nx
 from graph_to_graph_state2 import GraphState
 import numpy as np
 from qutip import Qobj
+from entanglement_tools import has_entanglement_ppt2
 
 app = Flask(__name__)
 
@@ -81,6 +82,17 @@ def check_stabilizer_submit():
     result = GraphState.is_stabilizer_state_detailed(psi, vertices)
 
     return jsonify(result)
+
+@app.route('/check_entanglement_ppt', methods=['POST'])
+def check_entanglement_ppt():
+    data = request.get_json()
+    n = data['n']
+    signs = data['signs']
+    norm = 1.0 / np.sqrt(2**n)
+    amplitudes = [norm * (1 if s == '+' else -1) for s in signs]
+    psi = Qobj(amplitudes, dims=[[2]*n, [1]*n])
+    is_ent = has_entanglement_ppt2(psi)
+    return jsonify({'is_entangled': is_ent, 'message': 'Проверка запутанности критерием PPT завершена'})
 
 
 

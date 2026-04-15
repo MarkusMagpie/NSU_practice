@@ -3,6 +3,44 @@ let signs = [];  // массив строк + -
 let lastVertices = null;
 let lastEdges = null;
 let network = null; // ссылка на активный экземпляр графв
+let entanglementButton = null;
+
+function clearEntanglementUI() {
+    if (entanglementButton) {
+        entanglementButton.remove();
+        entanglementButton = null;
+    }
+
+    $('#entanglementResult').empty();
+}
+
+function checkEntanglement() {
+    const n = currentN;
+    const numStates = 1 << n;
+    if (signs.length !== numStates) {
+        alert('Ошибка: таблица знаков не соответствует текущему n');
+        return;
+    }
+    $('#entanglementResult').html('<p style="color: blue;">Проверка запутанности критерием PPT</p>');
+    $.ajax({
+        url: '/check_entanglement_ppt',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({n: n, signs: signs}),
+        success: function(data) {
+            let html = '';
+            if (data.is_entangled) {
+                html += `<p">Состояние запутано</p>`;
+            } else {
+                html += `<p>Состояние сепарабельно</p>`;
+            }
+            if (data.message) {
+                html += `<p><em>${data.message}</em></p>`;
+            }
+            $('#entanglementResult').html(html);
+        }
+    });
+}
 
 function drawGraph(vertices, edges) {
     // изменились ли данные
@@ -70,6 +108,7 @@ function rebuildTable(n, signsArray) {
     lastVertices = null;
     lastEdges = null;
     $('#result').empty();
+    clearEntanglementUI(); 
 }
 
 function generateTable() {
@@ -94,6 +133,7 @@ function randomSigns() {
         if (sign === '+') $(this).addClass('plus').removeClass('minus');
         else $(this).addClass('minus').removeClass('plus');
     });
+    clearEntanglementUI();
 }
 
 function checkGraph() {
@@ -103,6 +143,7 @@ function checkGraph() {
         alert('Сначала сгенерируйте таблицу для выбранного n');
         return;
     }
+    clearEntanglementUI();
 
     $.ajax({
         url: '/check_graph_submit',
@@ -125,6 +166,14 @@ function checkGraph() {
                 network = null;
                 lastVertices = null;
                 lastEdges = null;
+
+                // + кнопка для проверки запутанности
+                if (entanglementButton) entanglementButton.remove();
+                entanglementButton = $('<button>', {
+                    text: 'Проверить запутанность (PPT)',
+                    id: 'checkEntanglementBtn'
+                }).appendTo('#result');
+                entanglementButton.on('click', checkEntanglement);
             }
         }
     });
@@ -215,8 +264,6 @@ function exportAmplitudesToCSV() {
 }
 
 $(document).ready(function() {
-    // generateTable();
-
     $('#generateTable').click(generateTable);
     $('#randomSigns').click(randomSigns);
     $('#checkBtn').click(checkGraph);
