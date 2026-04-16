@@ -1,5 +1,5 @@
 let currentN = 4;
-let signs = [];  // массив строк + -
+let signs = [];  // массив строк + - 0
 let lastVertices = null;
 let lastEdges = null;
 let network = null; // ссылка на активный экземпляр графв
@@ -62,28 +62,10 @@ function drawGraph(vertices, edges) {
     network = new vis.Network(container, data, options);
 }
 
-function attachSignClickHandlers() {
-    $('.sign-selector').off('click').on('click', function() {
+function attachSignChangeHandlers() {
+    $('.sign-selector').off('change').on('change', function() {
         const idx = $(this).data('idx');
-        if (signs[idx] === '+') {
-            signs[idx] = '-';
-            $(this).text('-').removeClass('plus').addClass('minus');
-        } else {
-            signs[idx] = '+';
-            $(this).text('+').removeClass('minus').addClass('plus');
-        }
-    });
-
-    // синхронизация отображения знаков на странице с signs
-    $('.sign-selector').each(function() {
-        const idx = $(this).data('idx');
-        const sign = signs[idx];
-        $(this).text(sign);
-        if (sign === '+') {
-            $(this).addClass('plus').removeClass('minus');
-        } else {
-            $(this).addClass('minus').removeClass('plus');
-        }
+        signs[idx] = $(this).val();
     });
 }
 
@@ -96,12 +78,18 @@ function rebuildTable(n, signsArray) {
     for (let i = 0; i < numStates; i++) {
         let basis = i.toString(2).padStart(n, '0');
         let sign = signs[i];
-        html += `<tr><td>|${basis}></td><td><span class="sign-selector" data-idx="${i}"> ${sign}</span></td></tr>`;
+        html += `<tr><td>|${basis}></td>`;
+        html += `<td><select class="sign-selector" data-idx="${i}">
+                    <option value="+" ${sign === '+' ? 'selected' : ''}>+</option>
+                    <option value="-" ${sign === '-' ? 'selected' : ''}>-</option>
+                    <option value="0" ${sign === '0' ? 'selected' : ''}>0</option>
+                  </select></td>`;
+        html += `</tr>`;
     }
     html += '</table>';
     $('#tableContainer').html(html);
 
-    attachSignClickHandlers();
+    attachSignChangeHandlers();
     
     if (network) network.destroy();
     network = null;
@@ -122,18 +110,13 @@ function generateTable() {
 function randomSigns() {
     const n = currentN;
     const numStates = 1 << n;
+    const opts = ['+', '-', '0'];
+    const newSigns = [];
     for (let i = 0; i < numStates; i++) {
-        signs[i] = Math.random() < 0.5 ? '+' : '-';
+        newSigns.push(opts[Math.floor(Math.random() * 3)]);
     }
 
-    $('.sign-selector').each(function() {
-        const idx = $(this).data('idx');
-        const sign = signs[idx];
-        $(this).text(sign);
-        if (sign === '+') $(this).addClass('plus').removeClass('minus');
-        else $(this).addClass('minus').removeClass('plus');
-    });
-    clearEntanglementUI();
+    rebuildTable(n, newSigns);
 }
 
 function checkGraph() {
@@ -217,18 +200,12 @@ function loadAmplitudesFromCSV(file) {
             return;
         }
 
-        currentN = n;
-        signs = amplitudes.map(a => a > 0 ? '+' : '-');
-
-        rebuildTable(n, signs);
-        // после регенерации таблицы обновление знаков в DOM
-        $('.sign-selector').each(function() {
-            const idx = $(this).data('idx');
-            const sign = signs[idx];
-            $(this).text(sign);
-            if (sign === '+') $(this).addClass('plus').removeClass('minus');
-            else $(this).addClass('minus').removeClass('plus');
+        const newSigns = amplitudes.map(a => {
+            if (Math.abs(a) < 1e-8) return '0';
+            return a > 0 ? '+' : '-';
         });
+
+        rebuildTable(n, newSigns);
         // обновление значения поля ввода n
         $('#n').val(n);
         alert(`Загружено ${amplitudes.length} амплитуд для n=${n}`);
@@ -244,14 +221,16 @@ function exportAmplitudesToCSV() {
         alert('Сначала сгенерируй таблицу для текущего n!');
         return;
     }
-    const norm = 1.0 / Math.sqrt(2**n);
+    const nonzeroCount = signs.filter(s => s !== '0').length;
+    const norm = nonzeroCount > 0 ? 1.0 / Math.sqrt(nonzeroCount) : 0;
     let csvContent = 'базис,амплитуда\n'; // в этой строке формирую контент для blob файла для экспорта
     for (let i = 0; i < numStates; i++) {
         const basis = i.toString(2).padStart(n, '0');
-        const sign = signs[i] === '+' ? '' : '-';
-        const amplitude = `${sign}${norm}`;
-        // действительная часть + 0j
-        const ampComplex = `(${amplitude}+0j)`;
+        let amp = 0;
+        if (signs[i] === '+') amp = norm;
+        else if (signs[i] === '-') amp = -norm;
+        else amp = 0;
+        const ampComplex = `(${amp}+0j)`;
         csvContent += `${basis},${ampComplex}\n`;
     }
     const blob = new Blob([csvContent], {type: 'text/csv'});

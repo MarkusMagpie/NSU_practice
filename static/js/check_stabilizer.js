@@ -4,26 +4,6 @@ let lastVertices = null;
 let lastEdges = null;
 let network = null; // ссылка на активный экземпляр графв
 
-function drawGraph(vertices, edges) {
-    // изменились ли данные
-    let verticesChanged = JSON.stringify(vertices) !== JSON.stringify(lastVertices);
-    let edgesChanged = JSON.stringify(edges) !== JSON.stringify(lastEdges);
-    if (!verticesChanged && !edgesChanged && network !== null) {
-        return;
-    }
-    lastVertices = vertices;
-    lastEdges = edges;
-
-    let nodes = vertices.map(v => ({id: v, label: v.toString()}));
-    let edgesVis = edges.map(e => ({from: e[0], to: e[1]}));
-
-    let container = document.getElementById('graph');
-    let data = {nodes: nodes, edges: edgesVis};
-    let options = {nodes: {shape: 'circle', size: 20}, physics: false};
-    if (network) network.destroy();
-    network = new vis.Network(container, data, options);
-}
-
 function attachSignChangeHandlers() {
     $('.sign-selector').off('change').on('change', function() {
         const idx = $(this).data('idx');
@@ -40,7 +20,6 @@ function rebuildTable(n, signsArray) {
     for (let i = 0; i < numStates; i++) {
         let basis = i.toString(2).padStart(n, '0');
         let sign = signs[i];
-        // html += `<tr><td>|${basis}></td><td><span class="sign-selector" data-idx="${i}"> ${sign}</span></td></tr>`;
         html += `<tr><td>|${basis}></td>`;
         html += `<td><select class="sign-selector" data-idx="${i}">
                     <option value="+" ${sign === '+' ? 'selected' : ''}>+</option>

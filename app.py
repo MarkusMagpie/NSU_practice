@@ -47,8 +47,11 @@ def check_graph_submit():
     n = data['n']  # число кубитов
     signs = data['signs']  # список знаков амплитуд например длины 2^n
     # амплитуды: 1/sqrt(2^n) * (+1 или -1)
+    if '0' in signs:
+        return jsonify({'is_graph': False, 'edges': None})
+    
     norm = 1.0 / np.sqrt(2**n)
-    amplitudes = [norm * (1 if s == '+' else -1) for s in signs]
+    amplitudes = [norm if s == '+' else -norm for s in signs]
     is_graph, found_state = GraphState.from_amplitudes(amplitudes)
     
     if is_graph:
@@ -88,8 +91,16 @@ def check_entanglement_ppt():
     data = request.get_json()
     n = data['n']
     signs = data['signs']
-    norm = 1.0 / np.sqrt(2**n)
-    amplitudes = [norm * (1 if s == '+' else -1) for s in signs]
+    nonzero_count = sum(1 for s in signs if s != '0')
+    norm = 1.0 / np.sqrt(nonzero_count) if nonzero_count > 0 else 0
+    amplitudes = []
+    for s in signs:
+        if s == '+':
+            amplitudes.append(norm)
+        elif s == '-':
+            amplitudes.append(-norm)
+        else:
+            amplitudes.append(0.0)
     psi = Qobj(amplitudes, dims=[[2]*n, [1]*n])
     is_ent = has_entanglement_ppt2(psi)
     return jsonify({'is_entangled': is_ent, 'message': 'Проверка запутанности критерием PPT завершена'})
@@ -97,4 +108,5 @@ def check_entanglement_ppt():
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    # app.run(debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)
