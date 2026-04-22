@@ -1,28 +1,5 @@
 let currentN = 4;
-let signs = [];  // массив строк + - 0
-let lastVertices = null;
-let lastEdges = null;
-let network = null; // ссылка на активный экземпляр графв
-
-function drawGraph(vertices, edges) {
-    // изменились ли данные
-    let verticesChanged = JSON.stringify(vertices) !== JSON.stringify(lastVertices);
-    let edgesChanged = JSON.stringify(edges) !== JSON.stringify(lastEdges);
-    if (!verticesChanged && !edgesChanged && network !== null) {
-        return;
-    }
-    lastVertices = vertices;
-    lastEdges = edges;
-
-    let nodes = vertices.map(v => ({id: v, label: v.toString()}));
-    let edgesVis = edges.map(e => ({from: e[0], to: e[1]}));
-
-    let container = document.getElementById('graph');
-    let data = {nodes: nodes, edges: edgesVis};
-    let options = {nodes: {shape: 'circle', size: 20}, physics: false};
-    if (network) network.destroy();
-    network = new vis.Network(container, data, options);
-}
+let signs = [];  // массив строк '+', '-', '0'
 
 function attachSignChangeHandlers() {
     $('.sign-selector').off('change').on('change', function() {
@@ -48,16 +25,11 @@ function rebuildTable(n, signsArray) {
                   </select></td>`;
         html += `</tr>`;
     }
-    html += '</table>';
+    html += '<table>';
     $('#tableContainer').html(html);
-
     attachSignChangeHandlers();
-    
-    if (network) network.destroy();
-    network = null;
-    lastVertices = null;
-    lastEdges = null;
-    $('#result').empty(); 
+    $('#result').empty();
+    $('#pyramidImage').empty();
 }
 
 function generateTable() {
@@ -71,16 +43,15 @@ function generateTable() {
 function randomSigns() {
     const n = currentN;
     const numStates = 1 << n;
-    const opts = ['+', '-', '0'];
+    const opts = ['+', '-'];
     const newSigns = [];
     for (let i = 0; i < numStates; i++) {
-        newSigns.push(opts[Math.floor(Math.random() * 3)]);
+        newSigns.push(opts[Math.floor(Math.random() * 2)]);
     }
-
     rebuildTable(n, newSigns);
 }
 
-function checkGraph() {
+function checkSeparability() {
     const n = currentN;
     const numStates = 1 << n;
     if (signs.length !== numStates) {
@@ -89,26 +60,33 @@ function checkGraph() {
     }
 
     $.ajax({
-        url: '/check_graph_submit',
+        url: '/check_separable_submit',
         method: 'POST',
         contentType: 'application/json',
         data: JSON.stringify({n: n, signs: signs}),
         success: function(data) {
-            if (data.is_graph) {
-                let edgesStr = data.edges.map(e => `${e[0]}-${e[1]}`).join(', ');
-                $('#result').html(`<p style="color: green;">Состояние является графовым! Найденный граф: ребра [${edgesStr}]</p>`);
-
-                let vertices = [];
-                for (let i = 1; i <= n; i++) {
-                    vertices.push(i);
+            let html = '';
+            if (data.is_separable) {
+                html += '<p>Состояние полностью сепарабельно</p>';
+                html += '<p>Разложение на однокубитные состояния:</p><ul>';
+                for (let i = 0; i < n; i++) {
+                    let signChar = data.t[i] === 1 ? '+' : '-';
+                    html += `<li>кубит ${i+1}: |0> + ${signChar}|1></li>`;
                 }
-                drawGraph(vertices, data.edges);
+                html += '</ul>';
             } else {
-                $('#result').html('<p style="color: red;">Состояние НЕ является графовым.</p>');
-                if (network) network.destroy();
-                network = null;
-                lastVertices = null;
-                lastEdges = null;
+                html += '<p>Состояние запутано</p>';
+                if (data.mismatches && data.mismatches.length > 0) {
+                    html += '<p>Несовпадения в базисных состояниях: ';
+                    html += data.mismatches.map(m => `|${m.toString(2).padStart(n, '0')}>`).join(', ');
+                    html += '</p>';
+                }
+            }
+            $('#result').html(html);
+            if (data.image) {
+                $('#pyramidImage').html(`<img src="data:image/png;base64,${data.image}" style="max-width:100%;">`);
+            } else {
+                $('#pyramidImage').html('<p>Изображение не сгенерировано</p>');
             }
         }
     });
@@ -116,14 +94,11 @@ function checkGraph() {
 
 function loadAmplitudesFromCSV(file) {
     const reader = new FileReader();
-
     reader.onload = function(e) {
         const content = e.target.result;
         const lines = content.split('\n');
-        // поиск заголовка файла - "базис,амплитуда"
         let startIdx = 0;
         if (lines[0].toLowerCase().includes('базис')) startIdx = 1;
-        
         const amplitudes = [];
         for (let i = startIdx; i < lines.length; i++) {
             const line = lines[i].trim();
@@ -131,38 +106,30 @@ function loadAmplitudesFromCSV(file) {
             const parts = line.split(',');
             if (parts.length < 2) continue;
             let ampStr = parts[1].trim();
-            // Re часть (0.25+0j)
             let match = ampStr.match(/\(?([+-]?\d*\.?\d+)/);
             let realPart = match ? parseFloat(match[1]) : 0;
             if (isNaN(realPart)) realPart = 0;
             amplitudes.push(realPart);
         }
-
         const n = Math.round(Math.log2(amplitudes.length));
         if (2**n !== amplitudes.length) {
-            alert('Некорректное количество амплитуд. Должно быть степенью двойки.');
+            alert('Некорректное количество амплитуд');
             return;
         }
-
-        // все модули равны
         const expectedNorm = 1.0 / Math.sqrt(2**n);
         const allEqual = amplitudes.every(a => Math.abs(Math.abs(a) - expectedNorm) < 1e-8);
         if (!allEqual) {
-            alert('Модули амплитуд не равны. Состояние не может быть графовым.');
+            alert('Модули амплитуд не равны. Знаковый критерий неприменим.');
             return;
         }
-
         const newSigns = amplitudes.map(a => {
             if (Math.abs(a) < 1e-8) return '0';
             return a > 0 ? '+' : '-';
         });
-
         rebuildTable(n, newSigns);
-        // обновление значения поля ввода n
         $('#n').val(n);
         alert(`Загружено ${amplitudes.length} амплитуд для n=${n}`);
     };
-
     reader.readAsText(file);
 }
 
@@ -170,12 +137,12 @@ function exportAmplitudesToCSV() {
     const n = currentN;
     const numStates = 1 << n;
     if (signs.length !== numStates) {
-        alert('Сначала сгенерируй таблицу для текущего n!');
+        alert('Сначала сгенерируйте таблицу для текущего n!');
         return;
     }
     const nonzeroCount = signs.filter(s => s !== '0').length;
     const norm = nonzeroCount > 0 ? 1.0 / Math.sqrt(nonzeroCount) : 0;
-    let csvContent = 'базис,амплитуда\n'; // в этой строке формирую контент для blob файла для экспорта
+    let csvContent = 'базис,амплитуда\n';
     for (let i = 0; i < numStates; i++) {
         const basis = i.toString(2).padStart(n, '0');
         let amp = 0;
@@ -186,23 +153,23 @@ function exportAmplitudesToCSV() {
         csvContent += `${basis},${ampComplex}\n`;
     }
     const blob = new Blob([csvContent], {type: 'text/csv'});
-    const link = document.createElement('a'); // временная ссылука на blob
-    const downloadurl = URL.createObjectURL(blob); // temp local url
-    link.href = downloadurl;
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.href = url;
     link.download = 'amplitudes.csv';
     link.click();
-    URL.revokeObjectURL(link.href);
+    URL.revokeObjectURL(url);
 }
 
 $(document).ready(function() {
+    generateTable();
     $('#generateTable').click(generateTable);
     $('#randomSigns').click(randomSigns);
-    $('#checkBtn').click(checkGraph);
-
+    $('#checkBtn').click(checkSeparability);
     $('#loadCsvBtn').click(function() {
         const fileInput = document.getElementById('csvFileInput');
         if (fileInput.files.length === 0) {
-            alert('CSV файл не выбран. Пожалуйста выберите.');
+            alert('Выберите CSV-файл');
             return;
         }
         loadAmplitudesFromCSV(fileInput.files[0]);
