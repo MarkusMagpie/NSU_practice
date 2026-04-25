@@ -2,6 +2,8 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 from graph_to_graph_state2 import GraphState
+from itertools import combinations
+from collections import defaultdict
 
 def parse_signs_input(n):
     total = 2 ** n
@@ -35,6 +37,59 @@ def check_separable_signs(signs, n):
     if len(mismatches) == 0:
         return True, mismatches, t
     return False, mismatches, t
+
+def find_separable_blocks(signs, n):
+    # 1 - t_i = знак для состояния с единицей на i-й позиции
+    t = [0] * n
+    for i in range(n):
+        idx = 1 << i
+        t[i] = signs[idx]
+
+    # 2 - несовпадающие маски
+    mismatches = []
+    for mask in range(1 << n):
+        expected = 1
+        for i in range(n):
+            if mask & (1 << i):
+                expected *= t[i]
+        if signs[mask] != expected:
+            mismatches.append(mask)
+    
+    # 3 - граф связей для несовпадающих масок
+    adj = defaultdict(set)
+    for mask in mismatches:
+        # биты входящие в mask
+        bits = [i for i in range(n) if mask & (1 << i)]
+        # все пары между этими битами
+        for a, b in combinations(bits, 2):
+            adj[a].add(b)
+            adj[b].add(a)
+
+    # 4 - компоненты связности
+    visited = [False] * n
+    blocks = []
+    for i in range(n):
+        if not visited[i]:
+            stack = [i]
+            comp = []
+            while stack:
+                v = stack.pop()
+                if visited[v]:
+                    continue
+                visited[v] = True
+                comp.append(v)
+                for nb in adj.get(v, []):
+                    if not visited[nb]:
+                        stack.append(nb)
+            # i изолирован
+            if not comp:
+                comp = [i]
+            blocks.append(sorted(comp))
+
+    blocks.sort()
+
+    return blocks
+
 
 """
 signs - список знаков для всех 2^n базисов
@@ -103,6 +158,18 @@ def visualize_separability(signs, t, n, filename=None, return_fig=False):
     else:
         plt.show()
 
+def print_signs_for_two_bell_pairs():
+    vertices = [1,2,3,4]
+    edges = [(1,2), (3,4)]
+    gs = GraphState(vertices, edges)
+    amps = gs.get_amplitudes()
+    signs = [1 if a.real > 0 else -1 for a in amps]
+    n = 4
+    print("Базис | знак")
+    for mask in range(2**n):
+        basis = format(mask, '0{}b'.format(n))
+        sign = '+' if signs[mask] == 1 else '-'
+        print(f"|{basis}> : {sign}")
 
 
 def main():
@@ -116,26 +183,26 @@ def main():
     signs4 = [1 if a.real > 0 else -1 for a in amps]
     print("Знаки:", signs4[1:])
 
+    print_signs_for_two_bell_pairs()
 
+    # n = int(input("Введите число кубитов (n от 1 до 7): "))
+    # if n < 1 or n > 7:
+    #     print("n должно быть от 1 до 7")
+    #     return
+    # signs = parse_signs_input(n)
 
-    n = int(input("Введите число кубитов (n от 1 до 7): "))
-    if n < 1 or n > 7:
-        print("n должно быть от 1 до 7")
-        return
-    signs = parse_signs_input(n)
-
-    is_sep, mismatches, t = check_separable_signs(signs, n)
-    print("\nРезультат:")
-    if is_sep:
-        print("состояние сепарабельно")
-        print("Разложение на однокубитные состояния:")
-        for i in range(n):
-            sign_char = '+' if t[i] == 1 else '-'
-            print(f"\tкубит {i+1}: |0> + {sign_char}|1>")
-    else:
-        print("cостояние запутано")
+    # is_sep, mismatches, t = check_separable_signs(signs, n)
+    # print("\nРезультат:")
+    # if is_sep:
+    #     print("состояние сепарабельно")
+    #     print("Разложение на однокубитные состояния:")
+    #     for i in range(n):
+    #         sign_char = '+' if t[i] == 1 else '-'
+    #         print(f"\tкубит {i+1}: |0> + {sign_char}|1>")
+    # else:
+    #     print("cостояние запутано")
     
-    visualize_separability(signs, t, n, filename="separability_pyramid.png")
+    # visualize_separability(signs, t, n, filename="separability_pyramid.png")
 
 if __name__ == "__main__":
     main()
