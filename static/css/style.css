@@ -1,0 +1,122 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #f5f7fa;
+    color: #1e2a3a;
+    line-height: 1.5;
+    padding: 20px;
+}
+
+
+
+h1, h2, h3 {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+h1 {
+    font-size: 1.8rem;
+    border-left: 6px solid #3b82f6;
+    padding-left: 15px;
+    margin-bottom: 20px;
+}
+h2 {
+    font-size: 1.4rem;
+    margin-top: 1rem;
+    margin-bottom: 0.75rem;
+}
+h3 {
+    font-size: 1.2rem;
+    margin-top: 0.8rem;
+    margin-bottom: 0.5rem;
+}
+
+
+
+label {
+    font-weight: 500;
+    margin-right: 8px;
+}
+input, select, button {
+    font-family: inherit;
+    font-size: 0.9rem;
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid #cbd5e0;
+    background: white;
+    transition: 0.2s;
+}
+input:focus, select:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59,130,246,0.2);
+}
+button {
+    background: #3b82f6;
+    color: white;
+    border: none;
+    cursor: pointer;
+    font-weight: 500;
+    padding: 8px 16px;
+}
+button:hover {
+    background: #2563eb;
+    transform: scale(1.02);
+}
+button:active {
+    transform: scale(0.98);
+}
+
+
+
+a {
+    color: #3b82f6;
+    text-decoration: none;
+}
+a.button-like {
+    display: inline-block;
+    background: #e2e8f0;
+    padding: 8px 16px;
+    border-radius: 8px;
+    color: #1e2a3a;
+    font-weight: 500;
+    margin-top: 10px;
+    margin-right: 10px;
+}
+a.button-like:hover {
+    background: #cbd5e0;
+}
+
+
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 15px 0;
+    background: white;
+    border-radius: 12px;
+    /* overflow: auto; */
+    display: block;
+}
+th, td {
+    border: 1px solid #e2e8f0;
+    padding: 8px 12px;
+    text-align: center;
+    vertical-align: middle;
+}
+th {
+    background: #f1f5f9;
+    font-weight: 600;
+}
+/* стиль для выпадающих списков внутри таблицы */
+td select {
+    width: 60px;
+    text-align: center;
+    background: #f8fafc;
+    border-radius: 20px;
+    font-weight: bold;
+}
