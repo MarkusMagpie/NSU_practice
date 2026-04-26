@@ -4,6 +4,7 @@ import numpy as np
 from graph_to_graph_state2 import GraphState
 from itertools import combinations
 from collections import defaultdict
+from qutip import basis, tensor
 
 def parse_signs_input(n):
     total = 2 ** n
@@ -38,58 +39,135 @@ def check_separable_signs(signs, n):
         return True, mismatches, t
     return False, mismatches, t
 
-def find_separable_blocks(signs, n):
-    # 1 - t_i = знак для состояния с единицей на i-й позиции
-    t = [0] * n
-    for i in range(n):
-        idx = 1 << i
-        t[i] = signs[idx]
+# def find_separable_blocks(signs, n):
+#     # 1 - t_i = знак для состояния с единицей на i-й позиции
+#     t = [0] * n
+#     for i in range(n):
+#         idx = 1 << i
+#         t[i] = signs[idx]
 
-    # 2 - несовпадающие маски
-    mismatches = []
-    for mask in range(1 << n):
-        expected = 1
-        for i in range(n):
-            if mask & (1 << i):
-                expected *= t[i]
-        if signs[mask] != expected:
-            mismatches.append(mask)
+#     # 2 - несовпадающие маски
+#     mismatches = []
+#     for mask in range(1 << n):
+#         expected = 1
+#         for i in range(n):
+#             if mask & (1 << i):
+#                 expected *= t[i]
+#         if signs[mask] != expected:
+#             mismatches.append(mask)
     
-    # 3 - граф связей для несовпадающих масок
+#     # 3 - граф связей для несовпадающих масок
+#     adj = defaultdict(set)
+#     for mask in mismatches:
+#         # биты входящие в mask
+#         bits = [i for i in range(n) if mask & (1 << i)]
+#         # все пары между этими битами
+#         for a, b in combinations(bits, 2):
+#             adj[a].add(b)
+#             adj[b].add(a)
+
+#     # 4 - компоненты связности
+#     visited = [False] * n
+#     blocks = []
+#     for i in range(n):
+#         if not visited[i]:
+#             stack = [i]
+#             comp = []
+#             while stack:
+#                 v = stack.pop()
+#                 if visited[v]:
+#                     continue
+#                 visited[v] = True
+#                 comp.append(v)
+#                 for nb in adj.get(v, []):
+#                     if not visited[nb]:
+#                         stack.append(nb)
+#             # i изолирован
+#             if not comp:
+#                 comp = [i]
+#             blocks.append(sorted(comp))
+
+#     blocks.sort()
+
+#     return blocks
+
+def find_blocks_recursive(signs, indices):
+    if len(indices) <= 1:
+        return [indices]
+
+    t = {i: signs[1 << i] for i in indices}
+
+    # шаг 1 - несовпадения на уровне пар кубитов
     adj = defaultdict(set)
-    for mask in mismatches:
-        # биты входящие в mask
-        bits = [i for i in range(n) if mask & (1 << i)]
-        # все пары между этими битами
-        for a, b in combinations(bits, 2):
+    for a, b in combinations(indices, 2):
+        mask = (1 << a) | (1 << b)
+        expected = t[a] * t[b]
+        if signs[mask] != expected:
             adj[a].add(b)
             adj[b].add(a)
 
-    # 4 - компоненты связности
-    visited = [False] * n
-    blocks = []
-    for i in range(n):
-        if not visited[i]:
-            stack = [i]
+    visited = set()
+    components = []
+    for v in indices:
+        if v not in visited:
+            stack = [v]
             comp = []
             while stack:
-                v = stack.pop()
-                if visited[v]:
+                node = stack.pop()
+                if node in visited: 
                     continue
-                visited[v] = True
-                comp.append(v)
-                for nb in adj.get(v, []):
-                    if not visited[nb]:
+                visited.add(node)
+                comp.append(node)
+                for nb in adj.get(node, []):
+                    if nb not in visited:
                         stack.append(nb)
-            # i изолирован
-            if not comp:
-                comp = [i]
-            blocks.append(sorted(comp))
+            components.append(comp)
+    if not components:
+        return [[i] for i in indices]
 
-    blocks.sort()
+    # шаг 2 - перестройка решетки - проверка связей между компонентами связности
+    comp_masks = [sum(1 << i for i in comp) for comp in components]
+    comp_signs = [signs[mask] for mask in comp_masks]
 
-    return blocks
+    comp_adj = defaultdict(set)
+    for i in range(len(comp_masks)):
+        for j in range(i+1, len(comp_masks)):
+            combined = comp_masks[i] | comp_masks[j]
+            expected = comp_signs[i] * comp_signs[j]
+            if signs[combined] != expected:
+                comp_adj[i].add(j)
+                comp_adj[j].add(i)
 
+    visited_comp = set()
+    final_blocks = []
+    for i in range(len(components)):
+        if i not in visited_comp:
+            stack = [i]
+            block = []
+            while stack:
+                node = stack.pop()
+                if node in visited_comp: 
+                    continue
+                visited_comp.add(node)
+                block.extend(components[node])
+                for nb in comp_adj.get(node, []):
+                    if nb not in visited_comp:
+                        stack.append(nb)
+            final_blocks.append(block)
+
+    if len(final_blocks) == 1 and set(final_blocks[0]) == set(indices):
+        return [indices]
+
+    result = []
+    for block in final_blocks:
+        if len(block) <= 1:
+            result.append(block)
+        else:
+            result.extend(find_blocks_recursive(signs, block))
+    return result
+
+def find_partition_blocks(signs, n):
+    return find_blocks_recursive(signs, list(range(n)))
 
 """
 signs - список знаков для всех 2^n базисов
@@ -158,32 +236,76 @@ def visualize_separability(signs, t, n, filename=None, return_fig=False):
     else:
         plt.show()
 
-def print_signs_for_two_bell_pairs():
-    vertices = [1,2,3,4]
-    edges = [(1,2), (3,4)]
-    gs = GraphState(vertices, edges)
-    amps = gs.get_amplitudes()
+def test_find_blocks():
+    test_cases = [
+        (4, [(1,2),(3,4)], [[0,1],[2,3]]),
+        (4, [(1,2),(2,3),(3,4)], [[0,1,2,3]]),
+        (4, [], [[0],[1],[2],[3]]),
+
+        (5, [(i,i+1) for i in range(1,5)], [[0,1,2,3,4]]),
+        (5, [], [[0],[1],[2],[3],[4]]),
+
+        (6, [(1,2),(3,4),(5,6)], [[0,1],[2,3],[4,5]]),
+        (6, [(i,i+1) for i in range(1,6)], [[0,1,2,3,4,5]]),
+        (6, [], [[0],[1],[2],[3],[4],[5]]),
+
+        (7, [(i,i+1) for i in range(1,7)], [[0,1,2,3,4,5,6]]),
+        (7, [], [[0],[1],[2],[3],[4],[5],[6]]),
+    ]
+
+    for n, edges, expected_blocks in test_cases:
+        vertices = list(range(1, n+1))
+        gs = GraphState(vertices, edges)
+        amps = gs.get_amplitudes()
+        signs = [1 if a.real > 0 else -1 for a in amps]
+
+        blocks = find_blocks_recursive(signs, list(range(n)))
+
+        blocks_sorted = [sorted(b) for b in blocks]
+        expected_sorted = [sorted(b) for b in expected_blocks]
+
+        if sorted(blocks_sorted) == sorted(expected_sorted):
+            print(f"тест прошел. n={n}, {edges}: {blocks}")
+        else:
+            print(f"тест не прошел. n={n}, {edges}: ожидалось {expected_blocks}, получено {blocks}")
+
+    b00 = basis([2,2], [0,0])
+    b11 = basis([2,2], [1,1])
+
+    bell_plus = (b00 + b11).unit()
+    bell_minus = (b00 - b11).unit()
+
+    state = tensor(bell_plus, bell_minus)
+    amps = state.full().flatten()
     signs = [1 if a.real > 0 else -1 for a in amps]
-    n = 4
-    print("Базис | знак")
-    for mask in range(2**n):
-        basis = format(mask, '0{}b'.format(n))
-        sign = '+' if signs[mask] == 1 else '-'
-        print(f"|{basis}> : {sign}")
+
+    blocks = find_blocks_recursive(signs, list(range(4)))
+    print(blocks)
+
+    b00 = tensor(basis(2,0), basis(2,0))
+    b01 = tensor(basis(2,0), basis(2,1))
+    b10 = tensor(basis(2,1), basis(2,0))
+    b11 = tensor(basis(2,1), basis(2,1))
+    bell = (b00 + b01 + b10 - b11).unit()
+    state = tensor(bell, bell)
+    amps = state.full().flatten()
+    signs = [1 if a.real > 0 else -1 for a in amps]
+    blocks = find_blocks_recursive(signs, list(range(4)))
+    print(blocks) 
 
 
 def main():
-    gs = GraphState([1,2,3], [(1,2),(2,3)])
-    amps = gs.get_amplitudes()
-    signs3 = [1 if a.real > 0 else -1 for a in amps]
-    print("Знаки:", signs3[1:])
+    # gs = GraphState([1,2,3], [(1,2),(2,3)])
+    # amps = gs.get_amplitudes()
+    # signs3 = [1 if a.real > 0 else -1 for a in amps]
+    # print("Знаки:", signs3[1:])
 
-    gs = GraphState([1,2,3,4], [(1,2),(2,3),(3,4)])
-    amps = gs.get_amplitudes()
-    signs4 = [1 if a.real > 0 else -1 for a in amps]
-    print("Знаки:", signs4[1:])
+    # gs = GraphState([1,2,3,4], [(1,2),(2,3),(3,4)])
+    # amps = gs.get_amplitudes()
+    # signs4 = [1 if a.real > 0 else -1 for a in amps]
+    # print("Знаки:", signs4[1:])
 
-    print_signs_for_two_bell_pairs()
+    # print_signs_for_two_bell_pairs()
 
     # n = int(input("Введите число кубитов (n от 1 до 7): "))
     # if n < 1 or n > 7:
@@ -203,6 +325,8 @@ def main():
     #     print("cостояние запутано")
     
     # visualize_separability(signs, t, n, filename="separability_pyramid.png")
+
+    test_find_blocks()
 
 if __name__ == "__main__":
     main()
