@@ -38,7 +38,7 @@ function buildState() {
             currentVertices = vertices;
             currentAmplitudes = data.amplitudes;
 
-            let html = '<h3>Амплитуды (все):</h3>';
+            let html = '<h3>Амплитуды:</h3>';
             html += '<div style="max-height: 400px; overflow-y: auto;">';
             html += '<table border="1" cellpadding="5" style="border-collapse: collapse; width: 50%;">';
             html += '<tr><th>Базис</th><th>Амплитуда</th></tr>';

@@ -44,21 +44,28 @@ def check_graph():
 
 @app.route('/check_graph_submit', methods=['POST'])
 def check_graph_submit():
-    data = request.get_json()
-    n = data['n']  # число кубитов
-    signs = data['signs']  # список знаков амплитуд например длины 2^n
-    # амплитуды: 1/sqrt(2^n) * (+1 или -1)
-    if '0' in signs:
-        return jsonify({'is_graph': False, 'edges': None})
-    
-    norm = 1.0 / np.sqrt(2**n)
-    amplitudes = [norm if s == '+' else -norm for s in signs]
-    is_graph, found_state = GraphState.from_amplitudes(amplitudes)
-    
-    if is_graph:
-        return jsonify({'is_graph': True, 'edges': found_state.edges})
-    else:
-        return jsonify({'is_graph': False, 'edges': None})
+    try: 
+        data = request.get_json()
+        n = data['n']  # число кубитов
+        signs = data['signs']  # список знаков амплитуд например длины 2^n
+        # амплитуды: 1/sqrt(2^n) * (+1 или -1)
+        if '0' in signs:
+            return jsonify({'is_graph': False, 'edges': None})
+        
+        norm = 1.0 / np.sqrt(2**n)
+        amplitudes = [norm if s == '+' else -norm for s in signs]
+        is_graph, found_state = GraphState.from_amplitudes(amplitudes)
+        
+        if is_graph:
+            edges = [list(edge) for edge in found_state.edges]
+            return jsonify({'is_graph': True, 'edges': edges})
+        else:
+            return jsonify({'is_graph': False, 'edges': None})
+    except Exception as e: 
+        print("Error in check_graph_submit:", e)
+        import traceback
+        traceback.print_exc()
+        return jsonify({'is_graph': False, 'edges': None}), 500
     
 @app.route('/check_stabilizer')
 def check_stabilizer():
