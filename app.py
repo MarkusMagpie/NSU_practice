@@ -54,18 +54,18 @@ def check_graph_submit():
         
         norm = 1.0 / np.sqrt(2**n)
         amplitudes = [norm if s == '+' else -norm for s in signs]
-        is_graph, found_state = GraphState.from_amplitudes(amplitudes)
+        is_graph, found_state, vertices = GraphState.from_amplitudes(amplitudes)
         
         if is_graph:
             edges = [list(edge) for edge in found_state.edges]
-            return jsonify({'is_graph': True, 'edges': edges})
+            return jsonify({'is_graph': True, 'edges': edges, 'vertices': vertices})
         else:
-            return jsonify({'is_graph': False, 'edges': None})
+            return jsonify({'is_graph': False, 'edges': None, 'vertices': None})
     except Exception as e: 
         print("Error in check_graph_submit:", e)
         import traceback
         traceback.print_exc()
-        return jsonify({'is_graph': False, 'edges': None}), 500
+        return jsonify({'is_graph': False, 'edges': None, 'vertices': None}), 500
     
 @app.route('/check_stabilizer')
 def check_stabilizer():
@@ -113,10 +113,10 @@ def check_separable_submit():
             signs.append(0)
     is_sep, mismatches, t = check_separable_signs(signs, n)
 
-    # Генерируем пирамиду в виде изображения (base64 или сохраняем временный файл)
+    # генерация пирамиды в виде изображения 
     import io
     import base64
-    fig = visualize_separability(signs, t, n, return_fig=True) # модифицируем функцию
+    fig = visualize_separability(signs, t, n, return_fig=True)
     buf = io.BytesIO()
     fig.savefig(buf, format='png')
     buf.seek(0)

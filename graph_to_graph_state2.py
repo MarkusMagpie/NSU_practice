@@ -534,9 +534,10 @@ class GraphState:
         
         vertices = list(range(1, n+1))
         psi = Qobj(amplitudes, dims=[[2]*n, [1]*n])
+
+        is_graph, found_state = GraphState.is_graph_state_parallel(psi, vertices, tol)
         
-        # return GraphState.is_graph_state(psi, vertices, tol)
-        return GraphState.is_graph_state_parallel(psi, vertices, tol)
+        return is_graph, found_state, vertices
     
     """
     Является ли состояние |psi> стабилизаторным для системы из len(vertices) кубитов?
