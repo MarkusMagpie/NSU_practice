@@ -1,10 +1,64 @@
 from flask import Flask, render_template, request, jsonify
-import networkx as nx
 from graph_to_graph_state2 import GraphState
 import numpy as np
 from qutip import Qobj
 from entanglement_algorithm import check_separable_signs, visualize_separability
 import matplotlib.pyplot as plt
+
+import redis
+import hashlib
+import json
+import os
+from functools import wraps
+from flask import make_response
+
+redis_host = os.environ.get('REDIS_HOST', 'localhost')
+
+r = redis.Redis(host=redis_host, port=6379, db=0, decode_responses=True)
+
+# декоратор для кэширования результатов эндпоинтов в Redis
+def cache_result(ttl=3600):
+    def decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            # данные запроса в json
+            data = request.get_json(silent=True) or {}
+            
+            # ключ: имя функции + хеш от данных
+            key_data = json.dumps(data, sort_keys=True)
+            key = hashlib.sha256(key_data.encode()).hexdigest()
+            key = f"{f.__name__}:{key}"
+            cached = r.get(key)
+            
+            if cached is not None:
+                print(f"Cache HIT для ключа {key}")
+                resp_data = json.loads(cached)
+                response = make_response(jsonify(resp_data))
+                response.headers['X-Cache'] = 'HIT'
+                return response
+            
+            print(f"Cache MISS для ключа {key}")
+            
+            # выполнение оригинальной функции
+            response = f(*args, **kwargs)
+            if isinstance(response, tuple):
+                resp, status = response
+                response_obj = make_response(resp)
+                response_obj.status_code = status
+            else:
+                response_obj = make_response(response)
+            
+            resp_data = response_obj.get_json()
+
+            # сохранение результата в Redis
+            r.setex(name=key, time=ttl, value=json.dumps(resp_data))
+            response_obj.headers['X-Cache'] = 'MISS'
+
+            return response_obj
+        return wrapper
+    return decorator
+
+
 
 app = Flask(__name__)
 
@@ -43,6 +97,7 @@ def check_graph():
     return render_template('check_graph.html')
 
 @app.route('/check_graph_submit', methods=['POST'])
+@cache_result(ttl=3600)
 def check_graph_submit():
     try: 
         data = request.get_json()
@@ -129,6 +184,39 @@ def check_separable_submit():
         'image': img_base64
     })
 
+@app.route('/lc_orbit', methods=['POST'])
+def lc_orbit():
+    data = request.get_json()
+
+    vertices = data['vertices']
+    edges = data['edges']
+
+    gs = GraphState(vertices, edges)
+    orbit = gs.lc_orbit()
+    orbit_data = []
+
+    for state in orbit:
+        n = len(vertices)
+        amps = state.state_vector.full().flatten()
+
+        signs = ['+' if a.real > 0 else '-' for a in amps]
+        orbit_data.append({
+            'n': n,
+            'signs': signs
+        })
+
+    return jsonify({
+        'orbit_size': len(orbit),
+        'orbit_states': orbit_data
+    })
+
+@app.route('/clear_cache', methods=['POST'])
+def clear_cache():
+    auth = request.headers.get('Authorization')
+    if auth != 'Bearer your-secret-token':
+        return jsonify({'error': 'Недостаточно прав для очистки кэша'}), 401
+    r.flushdb()
+    return jsonify({'message': 'Кэш очищен'}), 200
 
 
 if __name__ == '__main__':

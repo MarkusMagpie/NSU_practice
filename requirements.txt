@@ -18,6 +18,7 @@ pyparsing==3.3.1
 python-dateutil==2.9.0.post0
 qutip==5.2.2
 qutip-qip==0.4.1
+redis==7.4.0
 scipy==1.16.3
 six==1.17.0
 Werkzeug==3.1.8

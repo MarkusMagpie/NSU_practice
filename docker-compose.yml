@@ -1,5 +1,11 @@
 version: '3.8'
 services:
+  redis:
+    image: redis:alpine
+    ports:
+      - "6380:6379"
+    restart: unless-stopped
+
   web:
     build: .
     ports:
@@ -9,3 +15,6 @@ services:
     environment:
       - FLASK_ENV=development
       - FLASK_DEBUG=1
+      - REDIS_HOST=redis
+    depends_on:
+      - redis
