@@ -2,7 +2,7 @@ from flask import Flask, render_template, request, jsonify
 from graph_to_graph_state2 import GraphState
 import numpy as np
 from qutip import Qobj
-from entanglement_algorithm import check_separable_signs, visualize_separability
+from entanglement_algorithm import check_separable_signs, visualize_separability, find_partition_blocks
 import matplotlib.pyplot as plt
 
 import redis
@@ -157,15 +157,13 @@ def check_separable():
 def check_separable_submit():
     data = request.get_json()
     n = data['n']
-    signs_str = data['signs'] # список строк '+', '-', '0'
+    signs_str = data['signs'] # список строк '+', '-', пока без '0'
     signs = []
     for s in signs_str:
         if s == '+':
             signs.append(1)
         elif s == '-':
             signs.append(-1)
-        else:
-            signs.append(0)
     is_sep, mismatches, t = check_separable_signs(signs, n)
 
     # генерация пирамиды в виде изображения 
@@ -183,6 +181,15 @@ def check_separable_submit():
         'mismatches': mismatches,
         'image': img_base64
     })
+
+@app.route('/check_partial_separable_submit', methods=['POST'])
+def check_partial_separable_submit():
+    data = request.get_json()
+    n = data['n']
+    signs_str = data['signs']
+    signs = [1 if s == '+' else -1 for s in signs_str]
+    blocks = find_partition_blocks(signs, n) # функция из entanglement_algorithm.py
+    return jsonify({'blocks': blocks})
 
 @app.route('/lc_orbit', methods=['POST'])
 def lc_orbit():
